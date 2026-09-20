@@ -173,9 +173,12 @@ class MainWindow(QWidget):
             if not box.view().isVisible():
                 i = box.findData(st[key])
                 box.setCurrentIndex(max(i, 0))
-        self.audio_info.setText(f"Сейчас у PipeWire: {st['rate']} Гц, буфер {st['quantum']} "
-                                f"(~{st['quantum'] / st['rate'] * 1000:.1f} мс). Смена применяется, "
-                                "когда карта играет/пишет.")
+        rate = st["force_rate"] or st["rate"]
+        quantum = st["force_quantum"] or st["quantum"]
+        self.audio_info.setText(
+            f"Задержка буфера: {quantum} семплов / {rate} Гц = {quantum / rate * 1000:.2f} мс "
+            f"(сейчас у PipeWire: {st['rate']} Гц, {st['quantum']}). Смена применяется, "
+            "когда карта играет/пишет.")
 
     def set_enabled(self, on):
         for w in (*self.strips, self.monitor, self.phones, self.main):
