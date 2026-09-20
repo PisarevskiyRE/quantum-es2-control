@@ -156,7 +156,7 @@ class InputStrip(QWidget):
         self.fader = VFader(dev_mod.FADER_MIN, dev_mod.FADER_MAX, 4,
                             lambda db: window.call("set_input_fader", ch, db), meter=True,
                             name=f"In {ch + 1}")
-        self.fader.slider.setToolTip("Микшер устройство не сообщает: положение запоминает программа")
+        self.fader.slider.setToolTip("Уровень входа в Main-микс (не гейн преампа). Устройство его не сообщает, положение запоминает программа")
         self.fader.slider.setValue(round(dev_mod.FADER_MIN * 4))
         self.link = QLabel("")
         self.link.setObjectName("dim")

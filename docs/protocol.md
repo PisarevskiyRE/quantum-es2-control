@@ -160,3 +160,5 @@ Key = index | side << 24, side 0/1 = left/right, index 0/1 = input 1/2, 0x0a..0x
   The mixer matrix is not readable, so the client keeps a local model (main = 0 dB, faders = -96 dB at start)
   and the real device state may differ until a control is moved. In the fader capture the main level was
   +0.48 dB (as on the native screenshot), which reproduces the -96.00 dB / +10.00 dB fader range exactly.
+
+Confirmed by the user in the native app: Gain = preamp gain; the channel fader = send level of the input into the Main mix.
