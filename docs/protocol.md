@@ -137,3 +137,11 @@ Evidence: only offset 28 rises in the input-1 captures (0.0185 during phantom to
 gain sweep) and only offset 32 in the input-2 phantom capture (0.0232); silence is ~1e-5 (about -100 dBFS).
 Whether 1.0 is exactly full scale and whether the value is peak-since-last-poll is not verified.
 The GUI shows them as bars with instant attack, 20 dB/s release and a CLIP flag at >= -0.5 dBFS.
+
+## Naming vs the native app (from `docs/native-ui.png`)
+
+- Native "Main Out" knob (H/W Controls) = param 2, section 0, Rply float at 312 (-96 shown as "-oo dB").
+- Native "Phones" knob = param 7, section 0, Rply float at 324.
+- Native "Main L/R" fader = the 516-byte `mrpm` block (`10-main-out-volume`, ended at +0.48 dB, same as the screenshot).
+- Still to capture (one file each): input fader (In 1), pan, M (mute), S (solo), strip link icon, Dim,
+  main M (mute), the headphone button next to it, and whatever the gear/copy icons open.

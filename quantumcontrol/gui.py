@@ -1,11 +1,12 @@
-"""Qt GUI for the PreSonus Quantum ES 2."""
+"""Qt GUI for the PreSonus Quantum ES 2, laid out like the native Universal Control window."""
 import math
 import sys
 import time
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QApplication, QComboBox, QProgressBar, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QSlider, QVBoxLayout, QWidget, QGridLayout)
+from PySide6.QtWidgets import (QApplication, QComboBox, QDial, QDialog, QGridLayout, QHBoxLayout,
+                               QLabel, QMessageBox, QProgressBar, QPushButton, QSlider,
+                               QVBoxLayout, QWidget)
 
 from . import audio
 from . import device as dev_mod
@@ -13,65 +14,80 @@ from . import device as dev_mod
 METER_FLOOR_DB, FALL_DB_PER_S, CLIP_DB, CLIP_HOLD_S = -60.0, 20.0, -0.5, 2.0
 USER_HOLD_S = 0.5  # ignore polled values for a control right after the user touched it
 
+STYLE = """
+QWidget { background: #23262b; color: #e6e6e6; font-size: 12px; }
+QDialog, QWidget#strip, QWidget#hw { background: #2f3238; }
+QWidget#topbar { background: #000; }
+QPushButton { background: #3d4148; border: 1px solid #50555d; padding: 6px 4px; border-radius: 2px; }
+QPushButton:checked { background: #4a90d9; border-color: #6aa9e8; }
+QPushButton:disabled { color: #777; background: #33363b; }
+QLabel { background: transparent; }
+QLabel#val { color: #4a90d9; font-weight: bold; }
+QLabel#dim { color: #8a8f96; }
+QLabel#name { font-weight: bold; }
+QSlider::groove:vertical { background: #14161a; width: 6px; border-radius: 3px; }
+QSlider::handle:vertical { background: #cfd3d8; height: 22px; margin: 0 -8px; border-radius: 2px; }
+QSlider::groove:horizontal { background: #14161a; height: 6px; border-radius: 3px; }
+QSlider::handle:horizontal { background: #cfd3d8; width: 14px; margin: -6px 0; border-radius: 2px; }
+QProgressBar { background: #14161a; border: none; }
+QComboBox { background: #3d4148; border: 1px solid #50555d; padding: 4px; }
+"""
 
-class Row(QWidget):
-    """Labelled horizontal slider with a dB read-out. Slider units are `1/scale` dB."""
 
-    def __init__(self, title, lo, hi, scale, on_change, parent=None):
-        super().__init__(parent)
-        self.scale, self.on_change, self.touched = scale, on_change, 0.0
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(round(lo * scale), round(hi * scale))
-        self.value_label = QLabel()
-        self.value_label.setMinimumWidth(70)
-        self.value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+def fmt_db(v, digits=1):
+    return "-oo dB" if v <= -95.9 else f"{v:.{digits}f} dB"
+
+
+class Dial(QWidget):
+    """Knob with a title and blue value read-out. Dial units are 1/scale dB."""
+
+    def __init__(self, title, lo, hi, scale, on_change, fmt=fmt_db):
+        super().__init__()
+        self.scale, self.on_change, self.fmt, self.touched = scale, on_change, fmt, 0.0
+        self.dial = QDial()
+        self.dial.setRange(round(lo * scale), round(hi * scale))
+        self.dial.setFixedSize(40, 40)
+        self.title, self.value = QLabel(title), QLabel()
+        self.title.setObjectName("name")
+        self.value.setObjectName("val")
+        text = QVBoxLayout()
+        text.setSpacing(0)
+        text.addWidget(self.title)
+        text.addWidget(self.value)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        name = QLabel(title)
-        name.setMinimumWidth(110)
-        lay.addWidget(name)
-        lay.addWidget(self.slider, 1)
-        lay.addWidget(self.value_label)
-        self.slider.valueChanged.connect(self._changed)
-        self._show(self.slider.value())
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.addWidget(self.dial)
+        lay.addLayout(text, 1)
+        self.dial.valueChanged.connect(self._changed)
+        self._show(self.dial.value())
 
     def _show(self, raw):
-        self.value_label.setText(f"{raw / self.scale:+.1f} dB")
+        self.value.setText(self.fmt(raw / self.scale))
 
     def _changed(self, raw):
         self._show(raw)
         self.touched = time.monotonic()
         self.on_change(raw / self.scale)
 
-    def set_from_device(self, db):
-        if self.slider.isSliderDown() or time.monotonic() - self.touched < USER_HOLD_S:
+    def set_from_device(self, v):
+        if self.dial.isSliderDown() or time.monotonic() - self.touched < USER_HOLD_S:
             return
-        self.slider.blockSignals(True)
-        self.slider.setValue(round(db * self.scale))
-        self.slider.blockSignals(False)
-        self._show(self.slider.value())
+        self.dial.blockSignals(True)
+        self.dial.setValue(round(v * self.scale))
+        self.dial.blockSignals(False)
+        self._show(self.dial.value())
 
 
-class Meter(QWidget):
-    """Peak level bar in dBFS: instant attack, slow release, clip flag."""
+class VMeter(QProgressBar):
+    """Vertical peak meter in dBFS: instant attack, slow release, clip flag."""
 
     def __init__(self):
         super().__init__()
-        self.bar = QProgressBar()
-        self.bar.setRange(0, round(-METER_FLOOR_DB * 10))
-        self.bar.setTextVisible(False)
-        self.bar.setFixedHeight(12)
-        self.label = QLabel("-inf")
-        self.label.setMinimumWidth(70)
-        self.label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.setOrientation(Qt.Vertical)
+        self.setRange(0, round(-METER_FLOOR_DB * 10))
+        self.setTextVisible(False)
+        self.setFixedWidth(10)
         self.db, self.last, self.clip_until = METER_FLOOR_DB, time.monotonic(), 0.0
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        name = QLabel("Уровень")
-        name.setMinimumWidth(110)
-        lay.addWidget(name)
-        lay.addWidget(self.bar, 1)
-        lay.addWidget(self.label)
 
     def update_level(self, linear):
         now = time.monotonic()
@@ -80,39 +96,83 @@ class Meter(QWidget):
         self.last = now
         if new >= CLIP_DB:
             self.clip_until = now + CLIP_HOLD_S
-        clipping = now < self.clip_until
-        self.bar.setValue(round((self.db - METER_FLOOR_DB) * 10))
-        color = "#d33" if clipping else ("#e90" if self.db > -12 else "#3a3")
-        self.bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; }}")
-        self.label.setText("CLIP" if clipping else f"{self.db:.1f} dBFS")
+        color = "#d33" if now < self.clip_until else ("#e90" if self.db > -12 else "#3a3")
+        self.setValue(round((self.db - METER_FLOOR_DB) * 10))
+        self.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; }}")
 
 
-class InputStrip(QGroupBox):
+class VFader(QWidget):
+    """Vertical fader with optional level meter and a value label above."""
+
+    def __init__(self, lo, hi, scale, on_change, meter=False, name=""):
+        super().__init__()
+        self.scale, self.on_change, self.touched = scale, on_change, 0.0
+        self.slider = QSlider(Qt.Vertical)
+        self.slider.setRange(round(lo * scale), round(hi * scale))
+        self.slider.setTickPosition(QSlider.TicksRight)
+        self.slider.setTickInterval(round(12 * scale))
+        self.slider.setMinimumHeight(220)
+        self.meter = VMeter() if meter else None
+        self.value = QLabel("—")
+        self.value.setObjectName("val")
+        self.value.setAlignment(Qt.AlignCenter)
+        row = QHBoxLayout()
+        if self.meter:
+            row.addWidget(self.meter)
+        row.addWidget(self.slider)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.addWidget(self.value)
+        lay.addLayout(row, 1)
+        label = QLabel(name)
+        label.setObjectName("name")
+        lay.addWidget(label)
+        self.slider.valueChanged.connect(self._changed)
+
+    def _changed(self, raw):
+        self.value.setText(f"{raw / self.scale:.2f} dB")
+        self.touched = time.monotonic()
+        self.on_change(raw / self.scale)
+
+
+class InputStrip(QWidget):
     def __init__(self, window, ch):
-        super().__init__(f"Вход {ch + 1}")
-        self.w, self.ch = window, ch
-        self.gain = Row("Гейн", dev_mod.GAIN_MIN, dev_mod.GAIN_MAX, 8 / 3,
-                        lambda db: window.call("set_gain", ch, db))
-        self.meter = Meter()
-        self.phantom = QPushButton("+48V")
-        self.lowcut = QPushButton("Low Cut")
-        self.auto = QPushButton("Авто-гейн")
-        self.link = QLabel("")
-        for b in (self.phantom, self.lowcut):
+        super().__init__()
+        self.setObjectName("strip")
+        self.w, self.ch, self.touched = window, ch, {}
+        self.lowcut, self.phantom = QPushButton("HPF"), QPushButton("48V")
+        self.auto = QPushButton("Auto\nGain")
+        for b in (self.lowcut, self.phantom):
             b.setCheckable(True)
         self.phantom.clicked.connect(self._phantom_clicked)
         self.lowcut.clicked.connect(lambda on: window.call("set_lowcut", ch, on))
         self.auto.clicked.connect(lambda: window.call("start_autogain", ch))
-        buttons = QHBoxLayout()
-        for b in (self.phantom, self.lowcut, self.auto):
-            buttons.addWidget(b)
-        buttons.addStretch(1)
-        buttons.addWidget(self.link)
+        self.gain = Dial("Gain", dev_mod.GAIN_MIN, dev_mod.GAIN_MAX, 8 / 3,
+                         lambda db: window.call("set_gain", ch, db), fmt=lambda v: f"{v:.1f} dB")
+        self.pan, self.mute, self.solo = QPushButton("Pan"), QPushButton("M"), QPushButton("S")
+        for b in (self.pan, self.mute, self.solo):
+            b.setEnabled(False)
+            b.setToolTip("Пока не поддерживается: протокол не расшифрован")
+        self.fader = VFader(-96, 10, 2, lambda db: None, meter=True, name=f"In {ch + 1}")
+        self.fader.slider.setEnabled(False)
+        self.fader.slider.setToolTip("Фейдер микшера входа: протокол не расшифрован, показан только уровень")
+        self.link = QLabel("")
+        self.link.setObjectName("dim")
+        top = QHBoxLayout()
+        top.addWidget(self.lowcut)
+        top.addWidget(self.phantom)
+        ms = QHBoxLayout()
+        ms.addWidget(self.mute)
+        ms.addWidget(self.solo)
         lay = QVBoxLayout(self)
+        lay.addLayout(top)
+        lay.addWidget(self.auto)
         lay.addWidget(self.gain)
-        lay.addWidget(self.meter)
-        lay.addLayout(buttons)
-        self.touched = {}
+        lay.addWidget(self.pan)
+        lay.addLayout(ms)
+        lay.addWidget(self.fader, 1)
+        lay.addWidget(self.link)
+        self.setFixedWidth(150)
 
     def _phantom_clicked(self, on):
         if on:
@@ -128,36 +188,20 @@ class InputStrip(QGroupBox):
 
     def update_state(self, s):
         self.gain.set_from_device(s["gain_db"])
-        self.meter.update_level(s["level"])
+        self.fader.meter.update_level(s["level"])
         for key, btn in (("phantom", self.phantom), ("lowcut", self.lowcut)):
             if time.monotonic() - self.touched.get(key, 0) > USER_HOLD_S:
                 btn.setChecked(s[key])
-        self.auto.setText("Авто-гейн…" if s["autogain"] else "Авто-гейн")
+        self.auto.setText("Auto\nGain…" if s["autogain"] else "Auto\nGain")
         self.link.setText("стерео-линк" if s["link"] else "")
 
 
-class MainWindow(QWidget):
-    def __init__(self, factory):
-        super().__init__()
-        self.setWindowTitle("Quantum ES 2")
-        self.factory, self.dev = factory, None
-        self.status = QLabel("Нет соединения")
-        self.strips = [InputStrip(self, 0), InputStrip(self, 1)]
-        outs = QGroupBox("Выходы")
-        self.monitor = Row("Мониторы", dev_mod.VOL_MIN, dev_mod.VOL_MAX, 2,
-                           lambda db: self.call("set_monitor_volume", db))
-        self.phones = Row("Наушники", dev_mod.VOL_MIN, dev_mod.VOL_MAX, 2,
-                          lambda db: self.call("set_phones_volume", db))
-        self.main = Row("Main out", dev_mod.MAIN_MIN, dev_mod.MAIN_MAX, 2,
-                        lambda db: self.call("set_main_volume", db))
-        self.main.slider.setValue(0)
-        note = QLabel("Main out: устройство не сообщает значение, положение запоминает программа.")
-        note.setStyleSheet("color: gray")
-        ol = QVBoxLayout(outs)
-        for r in (self.monitor, self.phones, self.main):
-            ol.addWidget(r)
-        ol.addWidget(note)
-        aud = QGroupBox("Аудио (PipeWire, для всех устройств)")
+class SettingsDialog(QDialog):
+    """Sample rate / buffer via PipeWire (the card itself has no such setting on Linux)."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setWindowTitle("Настройки аудио")
         self.rate_box, self.quantum_box = QComboBox(), QComboBox()
         self.rate_box.addItem("Авто", 0)
         for r in audio.RATES:
@@ -165,65 +209,131 @@ class MainWindow(QWidget):
         self.quantum_box.addItem("Авто", 0)
         for q in audio.QUANTA:
             self.quantum_box.addItem(f"{q} семплов", q)
-        self.rate_box.activated.connect(lambda i: self.audio_set(audio.set_rate, self.rate_box))
-        self.quantum_box.activated.connect(lambda i: self.audio_set(audio.set_quantum, self.quantum_box))
-        self.audio_info = QLabel("")
-        self.audio_info.setStyleSheet("color: gray")
-        self.audio_info.setWordWrap(True)
-        self.audio_info.setMinimumHeight(48)
-        grid = QGridLayout(aud)
+        self.rate_box.activated.connect(lambda i: self.apply(audio.set_rate, self.rate_box))
+        self.quantum_box.activated.connect(lambda i: self.apply(audio.set_quantum, self.quantum_box))
+        self.info = QLabel("")
+        self.info.setObjectName("dim")
+        self.info.setWordWrap(True)
+        self.info.setMinimumHeight(48)
+        note = QLabel("Настройки PipeWire: действуют для всех звуковых устройств.")
+        note.setObjectName("dim")
+        grid = QGridLayout(self)
         grid.addWidget(QLabel("Частота"), 0, 0)
         grid.addWidget(self.rate_box, 0, 1)
         grid.addWidget(QLabel("Буфер"), 1, 0)
         grid.addWidget(self.quantum_box, 1, 1)
         grid.addWidget(QLabel("Разрядность"), 2, 0)
         grid.addWidget(QLabel(f"{audio.BITS} бит (единственная, что поддерживает карта)"), 2, 1)
-        grid.addWidget(self.audio_info, 3, 0, 1, 2)
+        grid.addWidget(self.info, 3, 0, 1, 2)
+        grid.addWidget(note, 4, 0, 1, 2)
         grid.setColumnStretch(1, 1)
-        lay = QVBoxLayout(self)
-        for s in self.strips:
-            lay.addWidget(s)
-        lay.addWidget(outs)
-        lay.addWidget(aud)
-        lay.addWidget(self.status)
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(420)
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.tick)
-        self.timer.start(50)
-        self.set_enabled(False)
-        self.audio_timer = QTimer(self)
-        self.audio_timer.timeout.connect(self.audio_refresh)
-        self.audio_timer.start(2000)
-        self.audio_refresh()
+        self.timer.timeout.connect(self.refresh)
+        self.timer.start(2000)
+        self.refresh()
 
-    def audio_set(self, setter, box):
+    def apply(self, setter, box):
         try:
             setter(box.currentData())
         except Exception as e:
-            self.audio_info.setText(f"Ошибка pw-metadata: {e}")
+            self.info.setText(f"Ошибка pw-metadata: {e}")
             return
-        self.audio_refresh()
+        self.refresh()
 
-    def audio_refresh(self):
+    def refresh(self):
         try:
             st = audio.get_settings()
         except Exception as e:
-            self.audio_info.setText(f"PipeWire недоступен: {e}")
+            self.info.setText(f"PipeWire недоступен: {e}")
             return
         for box, key in ((self.rate_box, "force_rate"), (self.quantum_box, "force_quantum")):
             if not box.view().isVisible():
-                i = box.findData(st[key])
-                box.setCurrentIndex(max(i, 0))
+                box.setCurrentIndex(max(box.findData(st[key]), 0))
         rate = st["force_rate"] or st["rate"]
         quantum = st["force_quantum"] or st["quantum"]
-        self.audio_info.setText(
+        self.info.setText(
             f"Задержка буфера: {quantum} семплов / {rate} Гц = {quantum / rate * 1000:.2f} мс "
             f"(сейчас у PipeWire: {st['rate']} Гц, {st['quantum']}). Смена применяется, "
             "когда карта играет/пишет.")
 
+
+class MainWindow(QWidget):
+    def __init__(self, factory):
+        super().__init__()
+        self.setWindowTitle("Quantum ES 2")
+        self.factory, self.dev = factory, None
+        self.settings = SettingsDialog(self)
+        self.status = QLabel("Нет соединения")
+        self.status.setObjectName("dim")
+
+        self.strips = [InputStrip(self, 0), InputStrip(self, 1)]
+
+        hw = QWidget()
+        hw.setObjectName("hw")
+        title = QLabel("H/W Controls")
+        title.setAlignment(Qt.AlignCenter)
+        self.main_knob = Dial("Main Out", dev_mod.VOL_MIN, dev_mod.VOL_MAX, 2,
+                              lambda db: self.call("set_monitor_volume", db))
+        self.phones = Dial("Phones", dev_mod.VOL_MIN, dev_mod.VOL_MAX, 2,
+                           lambda db: self.call("set_phones_volume", db))
+        self.dim, self.main_mute, self.to_phones = QPushButton("Dim"), QPushButton("M"), QPushButton("Phones")
+        for b in (self.dim, self.main_mute, self.to_phones):
+            b.setEnabled(False)
+            b.setToolTip("Пока не поддерживается: протокол не расшифрован")
+        self.main_fader = VFader(dev_mod.MAIN_MIN, dev_mod.MAIN_MAX, 2,
+                                 lambda db: self.call("set_main_volume", db), name="Main L/R")
+        self.main_fader.slider.setValue(0)
+        self.main_fader.slider.setToolTip("Устройство не сообщает значение, положение запоминает программа")
+        row = QHBoxLayout()
+        row.addWidget(self.main_mute)
+        row.addWidget(self.to_phones)
+        hl = QVBoxLayout(hw)
+        hl.addWidget(title)
+        hl.addWidget(self.main_knob)
+        hl.addWidget(self.phones)
+        hl.addWidget(self.dim)
+        hl.addLayout(row)
+        hl.addWidget(self.main_fader, 1)
+        hw.setFixedWidth(180)
+
+        gear = QPushButton("Настройки")
+        gear.setFixedHeight(28)
+        gear.clicked.connect(self.settings.show)
+        top = QWidget()
+        top.setObjectName("topbar")
+        tl = QHBoxLayout(top)
+        tl.setContentsMargins(6, 4, 6, 4)
+        tl.addStretch(1)
+        tl.addWidget(gear)
+
+        body = QHBoxLayout()
+        body.setSpacing(2)
+        body.setContentsMargins(0, 0, 0, 0)
+        for s in self.strips:
+            body.addWidget(s)
+        body.addStretch(1)
+        body.addWidget(hw)
+        lay = QVBoxLayout(self)
+        lay.setSpacing(0)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(top)
+        lay.addLayout(body, 1)
+        lay.addWidget(self.status)
+        self.setStyleSheet(STYLE)
+        self.setMinimumHeight(560)
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.tick)
+        self.timer.start(50)
+        self.set_enabled(False)
+
     def set_enabled(self, on):
-        for w in (*self.strips, self.monitor, self.phones, self.main):
+        for w in (*self.strips, self.main_knob, self.phones, self.main_fader):
             w.setEnabled(on)
+        if on:
+            for s in self.strips:
+                s.fader.slider.setEnabled(False)
 
     def call(self, name, *args):
         if self.dev is None:
@@ -260,7 +370,7 @@ class MainWindow(QWidget):
         self.status.setText(f"Подключено, прошивка {s['firmware']}")
         for strip, cs in zip(self.strips, s["channels"]):
             strip.update_state(cs)
-        self.monitor.set_from_device(s["monitor_db"])
+        self.main_knob.set_from_device(s["monitor_db"])
         self.phones.set_from_device(s["phones_db"])
 
     def closeEvent(self, e):
