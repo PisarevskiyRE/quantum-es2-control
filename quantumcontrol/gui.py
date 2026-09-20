@@ -153,9 +153,11 @@ class InputStrip(QWidget):
         for b in (self.pan, self.mute, self.solo):
             b.setEnabled(False)
             b.setToolTip("Пока не поддерживается: протокол не расшифрован")
-        self.fader = VFader(-96, 10, 2, lambda db: None, meter=True, name=f"In {ch + 1}")
-        self.fader.slider.setEnabled(False)
-        self.fader.slider.setToolTip("Фейдер микшера входа: протокол не расшифрован, показан только уровень")
+        self.fader = VFader(dev_mod.FADER_MIN, dev_mod.FADER_MAX, 4,
+                            lambda db: window.call("set_input_fader", ch, db), meter=True,
+                            name=f"In {ch + 1}")
+        self.fader.slider.setToolTip("Микшер устройство не сообщает: положение запоминает программа")
+        self.fader.slider.setValue(round(dev_mod.FADER_MIN * 4))
         self.link = QLabel("")
         self.link.setObjectName("dim")
         top = QHBoxLayout()
@@ -331,9 +333,6 @@ class MainWindow(QWidget):
     def set_enabled(self, on):
         for w in (*self.strips, self.main_knob, self.phones, self.main_fader):
             w.setEnabled(on)
-        if on:
-            for s in self.strips:
-                s.fader.slider.setEnabled(False)
 
     def call(self, name, *args):
         if self.dev is None:

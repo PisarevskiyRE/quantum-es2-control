@@ -1,6 +1,5 @@
 """Client for the Quantum ES 2 vendor control interface (IF5). See docs/protocol.md."""
 import struct
-from pathlib import Path
 
 import usb.core
 import usb.util
@@ -22,7 +21,8 @@ GAIN_MIN, GAIN_MAX = 0.0, 75.0
 VOL_MIN, VOL_MAX = -96.0, 0.0
 MAIN_MIN, MAIN_MAX = -96.0, 10.0
 
-_TEMPLATE = (Path(__file__).parent / "data" / "mrpm_template.bin").read_bytes()
+FADER_MIN, FADER_MAX = -96.0, 10.0
+PAN_CENTER_DB = -3.0  # crosspoint level = input fader + main fader + pan law (-3 dB at centre)
 
 
 class QuantumES2:
@@ -31,6 +31,8 @@ class QuantumES2:
         if self.dev is None:
             raise RuntimeError("Quantum ES 2 not found")
         self.seq = 1
+        # The mixer matrix cannot be read back; these are what we assume until the user moves a control.
+        self.main, self.faders = 0.0, [FADER_MIN, FADER_MIN]
         usb.util.claim_interface(self.dev, IFACE)
         self.dev.set_interface_altsetting(IFACE, ALT)
 
@@ -111,12 +113,35 @@ class QuantumES2:
         db = min(max(db, VOL_MIN), VOL_MAX)
         return self._set_float(SECTION_OUT, 0, P_OUT_PHONES, db)
 
-    def set_main_volume(self, db):
-        """Replays a captured 516-byte mixer block with the fader value substituted."""
-        v = min(max(db, MAIN_MIN), MAIN_MAX)
-        b = bytearray(_TEMPLATE)
-        struct.pack_into("<I", b, 4, self._next_seq())
-        for off, val in ((52, v), (108, v), (36, v - 99), (44, v - 99), (84, v - 99),
-                         (92, v - 99), (68, v - 96), (124, v - 96)):
-            struct.pack_into("<f", b, off, val)
+    def _send_mix(self, records):
+        """Send a 516-byte mixer block: 32-byte header, (u32 key, f32 dB) records, count at 512.
+        Key = index | side << 24; index 0/1 = input 1/2, 0x0a..0x0d = DAW returns; side 0/1 = L/R."""
+        b = bytearray(516)
+        b[0:32] = struct.pack("<HHI4sII4sII", 516, 0x0101, self._next_seq(), b"PteS", 0, 0,
+                              b"mrpm", 0x1F0, 0)
+        for i, (key, value) in enumerate(records):
+            struct.pack_into("<If", b, 32 + 8 * i, key, value)
+        struct.pack_into("<I", b, 512, len(records))
         return self._xfer(bytes(b))
+
+    def _input_level(self, ch):
+        return self.faders[ch] + self.main + PAN_CENTER_DB
+
+    def set_main_volume(self, db):
+        """Main L/R fader. UC resends every crosspoint, since they all include the main level."""
+        v = self.main = min(max(db, MAIN_MIN), MAIN_MAX)
+        records = []
+        for side in (0, 1):
+            c = side << 24
+            records += [(c | 0, self._input_level(0)), (c | 1, self._input_level(1)),
+                        (c | 0x0A, v if side == 0 else -145.0),
+                        (c | 0x0B, -145.0 if side == 0 else v),
+                        (c | 0x0C, v - 96 if side == 0 else -145.0),
+                        (c | 0x0D, -145.0 if side == 0 else v - 96)]
+        return self._send_mix(records)
+
+    def set_input_fader(self, channel, db):
+        """Mixer fader of input 1/2 (centre pan): updates its left and right crosspoints only."""
+        self.faders[channel] = min(max(db, FADER_MIN), FADER_MAX)
+        level = self._input_level(channel)
+        return self._send_mix([(channel, level), (channel | 1 << 24, level)])

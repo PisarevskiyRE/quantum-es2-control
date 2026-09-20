@@ -145,3 +145,18 @@ The GUI shows them as bars with instant attack, 20 dB/s release and a CLIP flag 
 - Native "Main L/R" fader = the 516-byte `mrpm` block (`10-main-out-volume`, ended at +0.48 dB, same as the screenshot).
 - Still to capture (one file each): input fader (In 1), pan, M (mute), S (solo), strip link icon, Dim,
   main M (mute), the headphone button next to it, and whatever the gear/copy icons open.
+
+## Mixer block `mrpm` decoded (`01-fader.pcapng` + `10-main-out-volume.pcapng`)
+
+516 bytes: 32-byte header (`len 0x204`, `01 01`, seq, `PteS`, 0, 0, `mrpm`, 0x1f0, 0), then records of
+(u32 key, float32 dB) from offset 32, zero padded, and the **record count as u32 at offset 512**.
+Key = index | side << 24, side 0/1 = left/right, index 0/1 = input 1/2, 0x0a..0x0d = DAW returns.
+
+- Input fader (In 1/2): UC sends only two records, (i, side 0) and (i, side 1), value =
+  `fader + main + pan law`, fader -96..+10 dB, pan law -3 dB at centre (so pan is per-side, next capture).
+- Main fader: UC resends all 12 records (both inputs' crosspoints plus DAW returns: L gets `v` on 0x0a and `v-96`
+  on 0x0c, R gets `v` on 0x0b and `v-96` on 0x0d, the rest -145).
+- Verified by regenerating all 54 main blocks and 66 fader blocks from this model: keys and floats identical.
+  The mixer matrix is not readable, so the client keeps a local model (main = 0 dB, faders = -96 dB at start)
+  and the real device state may differ until a control is moved. In the fader capture the main level was
+  +0.48 dB (as on the native screenshot), which reproduces the -96.00 dB / +10.00 dB fader range exactly.
