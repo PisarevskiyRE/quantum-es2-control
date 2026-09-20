@@ -3,9 +3,10 @@ import sys
 import time
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QApplication, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
+from PySide6.QtWidgets import (QApplication, QComboBox, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QSlider, QVBoxLayout, QWidget, QGridLayout)
 
+from . import audio
 from . import device as dev_mod
 
 USER_HOLD_S = 0.5  # ignore polled values for a control right after the user touched it
@@ -116,16 +117,65 @@ class MainWindow(QWidget):
         for r in (self.monitor, self.phones, self.main):
             ol.addWidget(r)
         ol.addWidget(note)
+        aud = QGroupBox("Аудио (PipeWire, для всех устройств)")
+        self.rate_box, self.quantum_box = QComboBox(), QComboBox()
+        self.rate_box.addItem("Авто", 0)
+        for r in audio.RATES:
+            self.rate_box.addItem(f"{r / 1000:g} кГц", r)
+        self.quantum_box.addItem("Авто", 0)
+        for q in audio.QUANTA:
+            self.quantum_box.addItem(f"{q} семплов", q)
+        self.rate_box.activated.connect(lambda i: self.audio_set(audio.set_rate, self.rate_box))
+        self.quantum_box.activated.connect(lambda i: self.audio_set(audio.set_quantum, self.quantum_box))
+        self.audio_info = QLabel("")
+        self.audio_info.setStyleSheet("color: gray")
+        self.audio_info.setWordWrap(True)
+        grid = QGridLayout(aud)
+        grid.addWidget(QLabel("Частота"), 0, 0)
+        grid.addWidget(self.rate_box, 0, 1)
+        grid.addWidget(QLabel("Буфер"), 1, 0)
+        grid.addWidget(self.quantum_box, 1, 1)
+        grid.addWidget(QLabel("Разрядность"), 2, 0)
+        grid.addWidget(QLabel(f"{audio.BITS} бит (единственная, что поддерживает карта)"), 2, 1)
+        grid.addWidget(self.audio_info, 3, 0, 1, 2)
+        grid.setColumnStretch(1, 1)
         lay = QVBoxLayout(self)
         for s in self.strips:
             lay.addWidget(s)
         lay.addWidget(outs)
+        lay.addWidget(aud)
         lay.addWidget(self.status)
         self.setMinimumWidth(560)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tick)
         self.timer.start(100)
         self.set_enabled(False)
+        self.audio_timer = QTimer(self)
+        self.audio_timer.timeout.connect(self.audio_refresh)
+        self.audio_timer.start(2000)
+        self.audio_refresh()
+
+    def audio_set(self, setter, box):
+        try:
+            setter(box.currentData())
+        except Exception as e:
+            self.audio_info.setText(f"Ошибка pw-metadata: {e}")
+            return
+        self.audio_refresh()
+
+    def audio_refresh(self):
+        try:
+            st = audio.get_settings()
+        except Exception as e:
+            self.audio_info.setText(f"PipeWire недоступен: {e}")
+            return
+        for box, key in ((self.rate_box, "force_rate"), (self.quantum_box, "force_quantum")):
+            if not box.view().isVisible():
+                i = box.findData(st[key])
+                box.setCurrentIndex(max(i, 0))
+        self.audio_info.setText(f"Сейчас у PipeWire: {st['rate']} Гц, буфер {st['quantum']} "
+                                f"(~{st['quantum'] / st['rate'] * 1000:.1f} мс). Смена применяется, "
+                                "когда карта играет/пишет.")
 
     def set_enabled(self, on):
         for w in (*self.strips, self.monitor, self.phones, self.main):
