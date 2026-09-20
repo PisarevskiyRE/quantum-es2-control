@@ -171,7 +171,7 @@ class VMeter(QProgressBar):
 class VFader(QWidget):
     """Vertical fader with optional level meter and a value label above."""
 
-    def __init__(self, lo, hi, scale, on_change, meter=False, name=""):
+    def __init__(self, lo, hi, scale, on_change, meter=False, name="", meters=None):
         super().__init__()
         self.scale, self.on_change, self.touched = scale, on_change, 0.0
         self.lo, self.hi = lo, hi
@@ -180,14 +180,16 @@ class VFader(QWidget):
         self.slider.setTickPosition(QSlider.TicksRight)
         self.slider.setTickInterval(round(12 * scale))
         self.slider.setMinimumHeight(220)
-        self.meter = VMeter() if meter else None
+        count = meters if meters else (1 if meter else 0)
+        self.meters = [VMeter() for _ in range(count)]
+        self.meter = self.meters[0] if self.meters else None
         self.value = EditableValue("—")
         self.value.setObjectName("val")
         self.value.setAlignment(Qt.AlignCenter)
         self.value.committed.connect(self._edited)
         row = QHBoxLayout()
-        if self.meter:
-            row.addWidget(self.meter)
+        for m in self.meters:
+            row.addWidget(m)
         row.addWidget(self.slider)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
@@ -410,7 +412,7 @@ class MainWindow(QWidget):
         self.to_phones.setFocusPolicy(Qt.NoFocus)
         self.to_phones.setToolTip("Наушники слушают Main-микс. Индикатор: в родном приложении эта кнопка не переключается")
         self.main_fader = VFader(dev_mod.MAIN_MIN, dev_mod.MAIN_MAX, 2,
-                                 lambda db: self.call("set_main_volume", db), name="Main L/R")
+                                 lambda db: self.call("set_main_volume", db), name="Main L/R", meters=2)
         self.main_fader.slider.setValue(0)
         self.main_fader.slider.setToolTip("Устройство не сообщает значение, положение запоминает программа")
         row = QHBoxLayout()
@@ -532,6 +534,8 @@ class MainWindow(QWidget):
         if time.monotonic() - self.mode_touched > USER_HOLD_S:
             self.dim.setChecked(s["out_mode"] == 1)
             self.main_mute.setChecked(s["out_mode"] == 2)
+        for meter, level in zip(self.main_fader.meters, s["main_level"]):
+            meter.update_level(level)
         self.main_knob.set_from_device(s["monitor_db"])
         self.phones.set_from_device(s["phones_db"])
 

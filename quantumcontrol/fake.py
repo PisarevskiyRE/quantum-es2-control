@@ -17,7 +17,7 @@ class FakeDevice:
         for i, c in enumerate(self.ch):
             c["level"] = abs(math.sin(t * (1.3 + i))) * 0.35 * 10 ** ((c["gain_db"] - 24) / 20)
         return {"channels": [dict(c) for c in self.ch], "monitor_db": self.monitor,
-                "phones_db": self.phones, "out_mode": self.out_mode, "firmware": "v3.03.112204 (demo)"}
+                "phones_db": self.phones, "out_mode": self.out_mode, "main_level": [abs(math.sin(t * 1.1)) * 0.2, abs(math.sin(t * 0.9)) * 0.2], "firmware": "v3.03.112204 (demo)"}
 
     def set_gain(self, ch, db): self.ch[ch]["gain_db"] = db
     def set_phantom(self, ch, on): self.ch[ch]["phantom"] = on
