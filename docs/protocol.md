@@ -110,3 +110,7 @@ Same SetP layout with field 16 = 0. Monitor (main) volume: `[section 0] araP 20,
 swept -96.0 .. -4.7 dB in the capture. State in Rply: float32 at offset **312**
 (was -96.0 at capture start). The two other floats that looked constant in the very first
 capture (316 = -10.0, 324 = -96.0) are probably further output levels (phones?), unconfirmed.
+
+Headphone volume (`09-phones-volume.pcapng`): section 0, index 0, **param 7**, float32 dB
+(swept -96.0 .. -0.8). State: float32 at offset **324**. So 312 = monitor (param 2), 324 = phones
+(param 7). Offset 316 (-10.0, never changed) is still unidentified.
