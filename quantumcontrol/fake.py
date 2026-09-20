@@ -29,4 +29,6 @@ class FakeDevice:
     def set_input_fader(self, ch, db): pass
     def set_input_pan(self, ch, pan): pass
     def set_input_mute(self, ch, on): pass
+    def set_stereo_link(self, on):
+        for c in self.ch: c['link'] = on
     def set_input_solo(self, ch, on): pass

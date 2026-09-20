@@ -35,6 +35,7 @@ class QuantumES2:
         # The mixer matrix cannot be read back; these are what we assume until the user moves a control.
         self.main, self.faders, self.pans = 0.0, [FADER_MIN, FADER_MIN], [0.0, 0.0]
         self.mutes, self.solos = [False, False], [False, False]
+        self._link_seen = None
         usb.util.claim_interface(self.dev, IFACE)
         self.dev.set_interface_altsetting(IFACE, ALT)
 
@@ -76,6 +77,11 @@ class QuantumES2:
                 "autogain": bool(r[b + 14]),
                 "level": struct.unpack_from("<f", r, OFF_METER + 4 * ch)[0],
             })
+        link = chans[0]["link"]
+        if link != self._link_seen:
+            self._link_seen = link
+            if link:
+                self.pans, self.faders[1] = [-1.0, 1.0], self.faders[0]
         return {
             "channels": chans,
             "monitor_db": struct.unpack_from("<f", r, OFF_MONITOR)[0],
@@ -162,6 +168,19 @@ class QuantumES2:
     def set_input_mute(self, channel, on):
         self.mutes[channel] = bool(on)
         return self._send_input(channel)
+
+    def set_stereo_link(self, on):
+        """Link inputs 1+2 as a stereo pair: SetP param 1 on both channels (ch2 first, like UC), then the mix."""
+        self._set_int(SECTION_IN, 1, P_IN_STEREO_LINK, on)
+        self._set_int(SECTION_IN, 0, P_IN_STEREO_LINK, on)
+        self._link_seen = bool(on)
+        if on:
+            self.pans, self.faders[1] = [-1.0, 1.0], self.faders[0]
+        else:
+            self.pans = [0.0, 0.0]
+        return self._send_mix([(0, self._input_level(0, 0)), (1, self._input_level(1, 0)),
+                               (1 << 24, self._input_level(0, 1)),
+                               (1 << 24 | 1, self._input_level(1, 1))])
 
     def _send_input(self, channel):
         return self._send_mix([(channel | side << 24, self._input_level(channel, side))

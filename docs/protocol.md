@@ -182,3 +182,13 @@ Same `mrpm` block, no separate parameter.
   main-96 as in the main-fader block). From the restored values, main was +0.48 dB, in1 fader ~+1.2 dB.
 - Client: mute sends only the input's two Main records; solo sends all 12 (`_send_full_mix`). Neither state is
   readable from the device.
+
+## Stereo link (measured, `01-link.pcapng` + `07-stereolink-in12.pcapng`)
+
+The strip's link icon is SetP param 1 (`[20, ch, 1, 0/1]`, channel 1 first, then channel 0), followed by a
+12-record `mrpm` block. Link on: in1 -> Main L only and in2 -> Main R only (`f+main` = +1.68 dB, opposite
+sides -145 dB), i.e. hard pan L/R, and input 2's fader takes input 1's value. Link off: both inputs centred
+(`f+main-3` = -1.32 dB on every crosspoint). The block also carries the send pairs with keys
+`input | bus << 16 | side << 24` (bus 0x0d / 0x0e; input 2 is `0x000d0001`), values `-96 + pan gain`
+(-96/-145 linked, -99 unlinked); the client omits them and sends the four Main crosspoints. The link flag is
+readable from Rply (bytes 389 / 408), so the GUI mirrors it.

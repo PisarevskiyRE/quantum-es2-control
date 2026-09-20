@@ -129,6 +129,12 @@ class VFader(QWidget):
         lay.addWidget(label)
         self.slider.valueChanged.connect(self._changed)
 
+    def set_silent(self, db):
+        self.slider.blockSignals(True)
+        self.slider.setValue(round(db * self.scale))
+        self.slider.blockSignals(False)
+        self.value.setText(f"{db:.2f} dB")
+
     def _changed(self, raw):
         self.value.setText(f"{raw / self.scale:.2f} dB")
         self.touched = time.monotonic()
@@ -176,12 +182,14 @@ class InputStrip(QWidget):
         self.mute.toggled.connect(lambda on: window.call("set_input_mute", ch, on))
         self.solo.toggled.connect(lambda on: window.call("set_input_solo", ch, on))
         self.fader = VFader(dev_mod.FADER_MIN, dev_mod.FADER_MAX, 4,
-                            lambda db: window.call("set_input_fader", ch, db), meter=True,
+                            lambda db: window.input_fader(ch, db), meter=True,
                             name=f"In {ch + 1}")
         self.fader.slider.setToolTip("Уровень входа в Main-микс (не гейн преампа). Устройство его не сообщает, положение запоминает программа")
         self.fader.slider.setValue(round(dev_mod.FADER_MIN * 4))
-        self.link = QLabel("")
-        self.link.setObjectName("dim")
+        self.link = QPushButton("Link")
+        self.link.setCheckable(True)
+        self.link.setToolTip("Стерео-линк входов 1+2: вход 1 - левый, вход 2 - правый Main, фейдеры вместе")
+        self.link.clicked.connect(lambda on: window.set_link(on))
         top = QHBoxLayout()
         top.addWidget(self.lowcut)
         top.addWidget(self.phantom)
@@ -222,7 +230,8 @@ class InputStrip(QWidget):
             if time.monotonic() - self.touched.get(key, 0) > USER_HOLD_S:
                 btn.setChecked(s[key])
         self.auto.setText("Auto\nGain…" if s["autogain"] else "Auto\nGain")
-        self.link.setText("стерео-линк" if s["link"] else "")
+        if time.monotonic() - self.w.link_touched > USER_HOLD_S:
+            self.link.setChecked(s["link"])
 
 
 class SettingsDialog(QDialog):
@@ -292,6 +301,7 @@ class MainWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Quantum ES 2")
         self.factory, self.dev = factory, None
+        self.linked, self.link_touched = False, 0.0
         self.settings = SettingsDialog(self)
         self.status = QLabel("Нет соединения")
         self.status.setObjectName("dim")
@@ -357,6 +367,32 @@ class MainWindow(QWidget):
         self.timer.start(50)
         self.set_enabled(False)
 
+    def input_fader(self, ch, db):
+        self.call("set_input_fader", ch, db)
+        if self.linked:
+            other = 1 - ch
+            self.strips[other].fader.set_silent(db)
+            self.call("set_input_fader", other, db)
+
+    def set_link(self, on):
+        self.link_touched = time.monotonic()
+        self.call("set_stereo_link", on)
+        self.apply_link(on)
+
+    def apply_link(self, on):
+        """Reflect a linked pair in the UI: pans fixed L/R, fader 2 follows fader 1."""
+        self.linked = on
+        for strip in self.strips:
+            strip.link.setChecked(on)
+            strip.pan.setEnabled(not on)
+        for strip, value in zip(self.strips, ((-100, 100) if on else (0, 0))):
+            strip.pan.blockSignals(True)
+            strip.pan.setValue(value)
+            strip.pan.blockSignals(False)
+            strip.pan_label.setText("C" if value == 0 else (f"L{-value}" if value < 0 else f"R{value}"))
+        if on:
+            self.strips[1].fader.set_silent(self.strips[0].fader.slider.value() / self.strips[0].fader.scale)
+
     def set_enabled(self, on):
         for w in (*self.strips, self.main_knob, self.phones, self.main_fader):
             w.setEnabled(on)
@@ -396,6 +432,8 @@ class MainWindow(QWidget):
         self.status.setText(f"Подключено, прошивка {s['firmware']}")
         for strip, cs in zip(self.strips, s["channels"]):
             strip.update_state(cs)
+        if s["channels"][0]["link"] != self.linked and time.monotonic() - self.link_touched > USER_HOLD_S:
+            self.apply_link(s["channels"][0]["link"])
         self.main_knob.set_from_device(s["monitor_db"])
         self.phones.set_from_device(s["phones_db"])
 
