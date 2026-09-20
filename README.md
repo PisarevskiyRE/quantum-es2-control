@@ -10,11 +10,15 @@ vendor protocol PreSonus's own software uses and reimplements it natively.
 
 ## Status
 
-Working Qt GUI (PySide6). Controls: input gain, +48V, low cut, auto gain for
-inputs 1-2; monitor, headphone and main out volume. Stereo link is only shown
-(read-only). Per-control live checks: gain was verified by readback; the user
-reported the rest of the GUI "seems to work" on the real device, without a
-control-by-control test. Protocol details: `docs/protocol.md`.
+Working Qt GUI (PySide6) laid out like Universal Control. Inputs 1-2: gain, +48V, low cut, auto gain, stereo
+link, pan, mute/solo, mixer fader into Main, level meter. Outputs: Main Out knob, Phones knob, Dim, Mute,
+Main L/R fader. Audio settings (sample rate, buffer, latency) are in the "Настройки" dialog and go through
+PipeWire. Not implemented on purpose: the native copy button; the headphone button is an indicator only.
+
+Verified live: gain (readback), input 1 meter, and the user's overall check that the GUI works. Everything else
+follows decoded captures but was not tested control by control. The mixer matrix (faders, pan, mute/solo, main
+fader) cannot be read back, so the GUI keeps its own model and starts from main 0 dB / faders -96 dB.
+Protocol details: `docs/protocol.md`.
 
 Run (the device must not be held by the VM or another program, and udev
 rule must be installed, see `udev/`):
