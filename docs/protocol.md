@@ -41,7 +41,7 @@ Phantom +48V on input 1 toggled on, off, on, off (4 SetP). Request, 40 bytes:
 | 4   | 4    | seq | counter |
 | 8   | 8    | `PteS lppA` | "SetP" "Appl" |
 | 16  | 4    | 1 | unknown |
-| 20  | 4    | `iraP` = "Pari" | unknown tag |
+| 20  | 4    | `iraP` = "Pari" for int params (phantom), `araP` = "Para" for float params (gain) | value type tag; **verified**: wrong tag = ack but no effect |
 | 24  | 4    | 0x14 (20) | hypothesis: parameter/group id |
 | 28  | 4    | 0 | **channel index** (measured: input 1 -> 0, input 2 -> 1) |
 | 32  | 4    | 0x0a (10) | hypothesis: parameter id (phantom?) |
@@ -90,3 +90,7 @@ still missing. Need per-action captures (phantom, pad, gain, ...) per
 `docs/capture-plan.md`, diffing the constant region of the IN reply and
 looking for non-`GetP` commands on OUT. Tools: `tools/dump_bulk.py`,
 `tools/cmd_stats.py`, `tools/in_diff.py`.
+
+## Verified from Linux
+
+`quantumcontrol/device.py` polls state and sets gain on the live device (host claims IF5 directly, VM must not hold the device). Gain 0 -> 1.5 -> 0 dB read back correctly on input 1. Phantom write not yet tested live (left off deliberately: phantom can damage some mics).
