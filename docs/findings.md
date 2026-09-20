@@ -49,7 +49,9 @@ own software.
   No kernel driver binds to this (it's not audio/HID/anything the kernel
   recognizes) — free for us to claim via libusb. **This is the control
   channel**: gain, phantom power, pad, monitor mix, everything Universal
-  Control exposes almost certainly goes through here.
+  Control exposes almost certainly goes through here. Confirmed by its
+  string descriptor, only readable once we had rw access (see below):
+  `iInterface` = **"Quantum ES 2 Control"**.
 - **IF6** — DFU (firmware update), Application Specific / DFU 1.10. Leave
   alone — not in scope, and flashing firmware wrong bricks the interface.
 
@@ -63,7 +65,8 @@ own software.
   needed after that.
 - `pyusb` (installed in `.venv`) sees and enumerates the device fine
   read-only even without the rule; claiming IF5 for read/write needs the rw
-  access above.
+  access above. Verified working (2026-09-20): `user:roy:rw-` present in the
+  ACL, `usb.util.claim_interface(dev, 5)` succeeds cleanly.
 
 ## Open questions for the capture (see `docs/capture-plan.md`)
 
