@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 captures/*.pcap
 captures/*.pcapng
+docs/*.pdf
