@@ -1,14 +1,16 @@
 """Qt GUI for the PreSonus Quantum ES 2."""
+import math
 import sys
 import time
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QApplication, QComboBox, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
+from PySide6.QtWidgets import (QApplication, QComboBox, QProgressBar, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QSlider, QVBoxLayout, QWidget, QGridLayout)
 
 from . import audio
 from . import device as dev_mod
 
+METER_FLOOR_DB, FALL_DB_PER_S, CLIP_DB, CLIP_HOLD_S = -60.0, 20.0, -0.5, 2.0
 USER_HOLD_S = 0.5  # ignore polled values for a control right after the user touched it
 
 
@@ -50,12 +52,48 @@ class Row(QWidget):
         self._show(self.slider.value())
 
 
+class Meter(QWidget):
+    """Peak level bar in dBFS: instant attack, slow release, clip flag."""
+
+    def __init__(self):
+        super().__init__()
+        self.bar = QProgressBar()
+        self.bar.setRange(0, round(-METER_FLOOR_DB * 10))
+        self.bar.setTextVisible(False)
+        self.bar.setFixedHeight(12)
+        self.label = QLabel("-inf")
+        self.label.setMinimumWidth(70)
+        self.label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.db, self.last, self.clip_until = METER_FLOOR_DB, time.monotonic(), 0.0
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        name = QLabel("Уровень")
+        name.setMinimumWidth(110)
+        lay.addWidget(name)
+        lay.addWidget(self.bar, 1)
+        lay.addWidget(self.label)
+
+    def update_level(self, linear):
+        now = time.monotonic()
+        new = 20 * math.log10(linear) if linear > 1e-6 else METER_FLOOR_DB
+        self.db = max(new, self.db - FALL_DB_PER_S * (now - self.last), METER_FLOOR_DB)
+        self.last = now
+        if new >= CLIP_DB:
+            self.clip_until = now + CLIP_HOLD_S
+        clipping = now < self.clip_until
+        self.bar.setValue(round((self.db - METER_FLOOR_DB) * 10))
+        color = "#d33" if clipping else ("#e90" if self.db > -12 else "#3a3")
+        self.bar.setStyleSheet(f"QProgressBar::chunk {{ background: {color}; }}")
+        self.label.setText("CLIP" if clipping else f"{self.db:.1f} dBFS")
+
+
 class InputStrip(QGroupBox):
     def __init__(self, window, ch):
         super().__init__(f"Вход {ch + 1}")
         self.w, self.ch = window, ch
         self.gain = Row("Гейн", dev_mod.GAIN_MIN, dev_mod.GAIN_MAX, 8 / 3,
                         lambda db: window.call("set_gain", ch, db))
+        self.meter = Meter()
         self.phantom = QPushButton("+48V")
         self.lowcut = QPushButton("Low Cut")
         self.auto = QPushButton("Авто-гейн")
@@ -72,6 +110,7 @@ class InputStrip(QGroupBox):
         buttons.addWidget(self.link)
         lay = QVBoxLayout(self)
         lay.addWidget(self.gain)
+        lay.addWidget(self.meter)
         lay.addLayout(buttons)
         self.touched = {}
 
@@ -89,6 +128,7 @@ class InputStrip(QGroupBox):
 
     def update_state(self, s):
         self.gain.set_from_device(s["gain_db"])
+        self.meter.update_level(s["level"])
         for key, btn in (("phantom", self.phantom), ("lowcut", self.lowcut)):
             if time.monotonic() - self.touched.get(key, 0) > USER_HOLD_S:
                 btn.setChecked(s[key])
@@ -130,6 +170,7 @@ class MainWindow(QWidget):
         self.audio_info = QLabel("")
         self.audio_info.setStyleSheet("color: gray")
         self.audio_info.setWordWrap(True)
+        self.audio_info.setMinimumHeight(48)
         grid = QGridLayout(aud)
         grid.addWidget(QLabel("Частота"), 0, 0)
         grid.addWidget(self.rate_box, 0, 1)
@@ -148,7 +189,7 @@ class MainWindow(QWidget):
         self.setMinimumWidth(560)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tick)
-        self.timer.start(100)
+        self.timer.start(50)
         self.set_enabled(False)
         self.audio_timer = QTimer(self)
         self.audio_timer.timeout.connect(self.audio_refresh)
@@ -209,7 +250,7 @@ class MainWindow(QWidget):
                 self.status.setText(f"Нет соединения: {e}")
                 self.timer.setInterval(1000)
                 return
-            self.timer.setInterval(100)
+            self.timer.setInterval(50)
             self.set_enabled(True)
         try:
             s = self.dev.state()

@@ -16,6 +16,7 @@ P_OUT_MONITOR, P_OUT_PHONES = 2, 7
 
 STATE_BASE, STATE_STRIDE = 376, 19
 OFF_MONITOR, OFF_PHONES = 312, 324
+OFF_METER = 28  # float32 linear peak per input, 4 bytes apart
 
 GAIN_MIN, GAIN_MAX = 0.0, 75.0
 VOL_MIN, VOL_MAX = -96.0, 0.0
@@ -69,6 +70,7 @@ class QuantumES2:
                 "lowcut": bool(r[b + 11]),
                 "link": bool(r[b + 13]),
                 "autogain": bool(r[b + 14]),
+                "level": struct.unpack_from("<f", r, OFF_METER + 4 * ch)[0],
             })
         return {
             "channels": chans,

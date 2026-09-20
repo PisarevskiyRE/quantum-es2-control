@@ -1,4 +1,6 @@
 """In-memory stand-in for QuantumES2, for `--demo` and UI tests."""
+import math
+import time
 
 
 class FakeDevice:
@@ -11,6 +13,9 @@ class FakeDevice:
         pass
 
     def state(self):
+        t = time.monotonic()
+        for i, c in enumerate(self.ch):
+            c["level"] = abs(math.sin(t * (1.3 + i))) * 0.35 * 10 ** ((c["gain_db"] - 24) / 20)
         return {"channels": [dict(c) for c in self.ch], "monitor_db": self.monitor,
                 "phones_db": self.phones, "firmware": "v3.03.112204 (demo)"}
 
