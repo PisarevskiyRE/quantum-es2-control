@@ -10,10 +10,17 @@ vendor protocol PreSonus's own software uses and reimplements it natively.
 
 ## Status
 
-Pre-protocol. See `docs/findings.md` for what's been established about the
-hardware and `docs/capture-plan.md` for the next concrete step: capturing
-real Universal Control ↔ device traffic from a Windows VM with USB
-passthrough, via `usbmon` on this host.
+Working Qt GUI (PySide6). Controls: input gain, +48V, low cut, auto gain for
+inputs 1-2; monitor, headphone and main out volume. Stereo link is only shown
+(read-only). Per-control live checks: gain was verified by readback; the user
+reported the rest of the GUI "seems to work" on the real device, without a
+control-by-control test. Protocol details: `docs/protocol.md`.
+
+Run (the device must not be held by the VM or another program, and udev
+rule must be installed, see `udev/`):
+
+    .venv/bin/python -m quantumcontrol          # real device
+    .venv/bin/python -m quantumcontrol --demo   # fake device, no hardware
 
 ## Layout
 
