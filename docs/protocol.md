@@ -198,3 +198,9 @@ readable from Rply (bytes 389 / 408), so the GUI mirrors it.
 One enum parameter in the output section: `[section 0, tag iraP, 20, 0, param 0, mode]` with mode 0 = normal,
 1 = Dim, 2 = Mute (mutually exclusive). State: byte at Rply offset **308** carries the same mode value. The amount
 of attenuation is applied by the device (not visible on the wire).
+
+## Main L/R meters (offsets 172 / 176, confirmed live)
+
+Rply float32 at **172** (Main L) and **176** (Main R): linear level, dBFS = 20*log10(v), same scale as the input
+meters at 28/32. Confirmed by the user: the bars react to music played from the computer. Offsets 276..288 (four
+values, ~1e-9 at silence) are still unidentified (possibly headphone/monitor meters).

@@ -17,7 +17,7 @@ P_OUT_DIM, P_OUT_MONITOR, P_OUT_PHONES = 0, 2, 7
 STATE_BASE, STATE_STRIDE = 376, 19
 OFF_DIM, OFF_MONITOR, OFF_PHONES = 308, 312, 324
 OFF_METER = 28  # float32 linear peak per input, 4 bytes apart
-OFF_MAIN_METER = 172  # hypothesis: float32 linear level of Main L (172) and R (176); not yet verified with audio
+OFF_MAIN_METER = 172  # float32 linear level of Main L (172) and R (176), confirmed live
 
 GAIN_MIN, GAIN_MAX = 0.0, 75.0
 VOL_MIN, VOL_MAX = -96.0, 0.0
