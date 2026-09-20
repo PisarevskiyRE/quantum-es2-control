@@ -1,0 +1,4 @@
+# Grants the active local user (uaccess) read/write access to the PreSonus
+# Quantum ES 2, so the control GUI/tools can open its vendor-specific USB
+# interface (bulk endpoints, interface 5) without root.
+SUBSYSTEM=="usb", ATTR{idVendor}=="194f", ATTR{idProduct}=="0609", TAG+="uaccess"
