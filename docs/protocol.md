@@ -114,3 +114,18 @@ capture (316 = -10.0, 324 = -96.0) are probably further output levels (phones?),
 Headphone volume (`09-phones-volume.pcapng`): section 0, index 0, **param 7**, float32 dB
 (swept -96.0 .. -0.8). State: float32 at offset **324**. So 312 = monitor (param 2), 324 = phones
 (param 7). Offset 316 (-10.0, never changed) is still unidentified.
+
+## Main out volume (measured, `10-main-out-volume.pcapng`)
+
+Not a 40-byte SetP: UC sends the 516-byte `mrpm` block (see "Mixer table block")
+for every fader step (54 blocks in one sweep, each acked with 8 bytes). Header:
+`04 02 01 01`, seq, `PteS`, 8 zero bytes, `mrpm`, u32 0x1f0, u32 0. Then records of
+(u32 id, float32 value): ch0 ids at offsets 32.., ch1 records the same layout 48 bytes later.
+
+One fader value `v` (dB, seen -27.55 .. +8.3) determines eight floats, verified on all 54 blocks:
+`v` at offsets 52 and 108, `v-99` at 36, 44, 84, 92, `v-96` at 68 and 124. Every other byte of the
+block was identical across the sweep, so the block can be replayed as a template with only those
+eight floats replaced. The Rply poll has no readable state for main volume (only tiny meter-like
+values at 172/176/276..288), so a client must remember the value itself.
+Live write from Linux not tested; the template also encodes the current mixer setup (stereo link
+changes the -96/-99 constants), so it should be captured from the same state it is replayed in.
