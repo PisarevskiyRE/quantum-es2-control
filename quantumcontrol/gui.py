@@ -135,6 +135,19 @@ class VFader(QWidget):
         self.on_change(raw / self.scale)
 
 
+class PanSlider(QSlider):
+    """Horizontal pan -100..100; double-click recentres."""
+
+    def __init__(self):
+        super().__init__(Qt.Horizontal)
+        self.setRange(-100, 100)
+        self.setTickPosition(QSlider.TicksBelow)
+        self.setTickInterval(50)
+
+    def mouseDoubleClickEvent(self, e):
+        self.setValue(0)
+
+
 class InputStrip(QWidget):
     def __init__(self, window, ch):
         super().__init__()
@@ -149,8 +162,14 @@ class InputStrip(QWidget):
         self.auto.clicked.connect(lambda: window.call("start_autogain", ch))
         self.gain = Dial("Gain", dev_mod.GAIN_MIN, dev_mod.GAIN_MAX, 8 / 3,
                          lambda db: window.call("set_gain", ch, db), fmt=lambda v: f"{v:.1f} dB")
-        self.pan, self.mute, self.solo = QPushButton("Pan"), QPushButton("M"), QPushButton("S")
-        for b in (self.pan, self.mute, self.solo):
+        self.pan = PanSlider()
+        self.pan_label = QLabel("C")
+        self.pan_label.setObjectName("val")
+        self.pan_label.setAlignment(Qt.AlignCenter)
+        self.pan.valueChanged.connect(self._pan_changed)
+        self.pan.setToolTip("Панорама входа в Main (двойной клик - в центр). Положение запоминает программа")
+        self.mute, self.solo = QPushButton("M"), QPushButton("S")
+        for b in (self.mute, self.solo):
             b.setEnabled(False)
             b.setToolTip("Пока не поддерживается: протокол не расшифрован")
         self.fader = VFader(dev_mod.FADER_MIN, dev_mod.FADER_MAX, 4,
@@ -171,10 +190,15 @@ class InputStrip(QWidget):
         lay.addWidget(self.auto)
         lay.addWidget(self.gain)
         lay.addWidget(self.pan)
+        lay.addWidget(self.pan_label)
         lay.addLayout(ms)
         lay.addWidget(self.fader, 1)
         lay.addWidget(self.link)
         self.setFixedWidth(150)
+
+    def _pan_changed(self, v):
+        self.pan_label.setText("C" if v == 0 else (f"L{-v}" if v < 0 else f"R{v}"))
+        self.w.call("set_input_pan", self.ch, v / 100)
 
     def _phantom_clicked(self, on):
         if on:

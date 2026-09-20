@@ -1,4 +1,5 @@
 """Client for the Quantum ES 2 vendor control interface (IF5). See docs/protocol.md."""
+import math
 import struct
 
 import usb.core
@@ -22,7 +23,7 @@ VOL_MIN, VOL_MAX = -96.0, 0.0
 MAIN_MIN, MAIN_MAX = -96.0, 10.0
 
 FADER_MIN, FADER_MAX = -96.0, 10.0
-PAN_CENTER_DB = -3.0  # crosspoint level = input fader + main fader + pan law (-3 dB at centre)
+OFF_DB = -145.0  # what the mixer uses for a silent crosspoint
 
 
 class QuantumES2:
@@ -32,7 +33,7 @@ class QuantumES2:
             raise RuntimeError("Quantum ES 2 not found")
         self.seq = 1
         # The mixer matrix cannot be read back; these are what we assume until the user moves a control.
-        self.main, self.faders = 0.0, [FADER_MIN, FADER_MIN]
+        self.main, self.faders, self.pans = 0.0, [FADER_MIN, FADER_MIN], [0.0, 0.0]
         usb.util.claim_interface(self.dev, IFACE)
         self.dev.set_interface_altsetting(IFACE, ALT)
 
@@ -124,8 +125,13 @@ class QuantumES2:
         struct.pack_into("<I", b, 512, len(records))
         return self._xfer(bytes(b))
 
-    def _input_level(self, ch):
-        return self.faders[ch] + self.main + PAN_CENTER_DB
+    def _input_level(self, ch, side):
+        """Crosspoint of input `ch` into Main L/R: fader + main + constant-power pan gain."""
+        theta = (self.pans[ch] + 1) * math.pi / 4
+        g = math.cos(theta) if side == 0 else math.sin(theta)
+        if g < 1e-7:
+            return OFF_DB
+        return max(self.faders[ch] + self.main + 20 * math.log10(g), OFF_DB)
 
     def set_main_volume(self, db):
         """Main L/R fader. UC resends every crosspoint, since they all include the main level."""
@@ -133,15 +139,23 @@ class QuantumES2:
         records = []
         for side in (0, 1):
             c = side << 24
-            records += [(c | 0, self._input_level(0)), (c | 1, self._input_level(1)),
+            records += [(c | 0, self._input_level(0, side)), (c | 1, self._input_level(1, side)),
                         (c | 0x0A, v if side == 0 else -145.0),
                         (c | 0x0B, -145.0 if side == 0 else v),
                         (c | 0x0C, v - 96 if side == 0 else -145.0),
                         (c | 0x0D, -145.0 if side == 0 else v - 96)]
         return self._send_mix(records)
 
+    def _send_input(self, channel):
+        return self._send_mix([(channel | side << 24, self._input_level(channel, side))
+                               for side in (0, 1)])
+
     def set_input_fader(self, channel, db):
-        """Mixer fader of input 1/2 (centre pan): updates its left and right crosspoints only."""
+        """Mixer fader of input 1/2: updates its left and right Main crosspoints only."""
         self.faders[channel] = min(max(db, FADER_MIN), FADER_MAX)
-        level = self._input_level(channel)
-        return self._send_mix([(channel, level), (channel | 1 << 24, level)])
+        return self._send_input(channel)
+
+    def set_input_pan(self, channel, pan):
+        """Pan of input 1/2, -1 (left) .. +1 (right). UC also rewrites two send pairs that sit at -96 dB; skipped."""
+        self.pans[channel] = min(max(pan, -1.0), 1.0)
+        return self._send_input(channel)

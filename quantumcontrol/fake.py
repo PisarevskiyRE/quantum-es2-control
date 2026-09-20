@@ -27,3 +27,4 @@ class FakeDevice:
     def set_phones_volume(self, db): self.phones = db
     def set_main_volume(self, db): pass
     def set_input_fader(self, ch, db): pass
+    def set_input_pan(self, ch, pan): pass

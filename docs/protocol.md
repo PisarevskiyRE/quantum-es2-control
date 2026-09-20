@@ -162,3 +162,13 @@ Key = index | side << 24, side 0/1 = left/right, index 0/1 = input 1/2, 0x0a..0x
   +0.48 dB (as on the native screenshot), which reproduces the -96.00 dB / +10.00 dB fader range exactly.
 
 Confirmed by the user in the native app: Gain = preamp gain; the channel fader = send level of the input into the Main mix.
+
+## Pan (measured, `01-pan.pcapng`)
+
+Pan uses the same `mrpm` block. Constant-power law, `theta = (p+1)*pi/4` for p in -1 (left) .. +1 (right):
+input's Main crosspoints `L = fader + main + 20*log10(cos theta)`, `R = fader + main + 20*log10(sin theta)`,
+the opposite side is exactly -145 dB at the extremes (p = +-1.000 in the capture; centre = -3 dB each).
+Over 71 blocks the model reproduces the captured values within 0.09 dB (assuming fader+main = +1.68 dB there).
+UC also rewrites two send pairs (keys 0x000d0000/0x010d0000 and 0x000e0000/0x010e0000 for input 1) with value
+`-96 + pan gain` (send fader at -96 = off); the client skips them and sends only the two Main crosspoints
+(6 records vs 2). Input 2's send-pair keys are not captured.
