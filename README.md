@@ -1,3 +1,6 @@
+<img width="876" height="679" alt="image" src="https://github.com/user-attachments/assets/72ac14c2-da80-4937-88cf-32bf77626134" />
+
+
 # quantum-es2-control
 
 > **Unofficial.** Not affiliated with or endorsed by PreSonus. The protocol was reverse-engineered
