@@ -324,8 +324,11 @@ class MainWindow(QWidget):
         self.dim.clicked.connect(lambda on: self.out_mode_clicked(1 if on else 0))
         self.main_mute.clicked.connect(lambda on: self.out_mode_clicked(2 if on else 0))
         self.mode_touched = 0.0
-        self.to_phones.setEnabled(False)
-        self.to_phones.setToolTip("Пока не поддерживается: протокол не расшифрован")
+        self.to_phones.setCheckable(True)
+        self.to_phones.setChecked(True)
+        self.to_phones.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.to_phones.setFocusPolicy(Qt.NoFocus)
+        self.to_phones.setToolTip("Наушники слушают Main-микс. Индикатор: в родном приложении эта кнопка не переключается")
         self.main_fader = VFader(dev_mod.MAIN_MIN, dev_mod.MAIN_MAX, 2,
                                  lambda db: self.call("set_main_volume", db), name="Main L/R")
         self.main_fader.slider.setValue(0)
