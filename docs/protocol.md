@@ -67,7 +67,7 @@ is a u32 for switches and a float32 for gain.
 | 10 | +48V phantom | 0/1 | byte 385 (ch1: 404) |
 | 4  | **low cut** (high-pass), confirmed by `04-lowcut-in1` | 0/1 | byte 387 |
 | 6  | **auto gain** (one-shot start, `05-autogen-in1`) | 1 to start | bytes 390/394 = 1 while listening (~10 s), then 390 = 3, then both 0 (~3 s later); gain float updates if a signal is present (untested: no signal in capture) |
-| 1  | unknown, sent to both channels at once (stereo link?) | 0/1 | bytes 389 and 408 (+ float at 395..398 changed) |
+| 1  | **input stereo link** (inputs 1+2 as a pair, `07-stereolink-in12`); UC sends SetP to ch1 then ch0 | 0/1 | bytes 389 and 408 |
 
 The per-channel state block is 19 bytes starting at offset 376: gain f32 at +0,
 phantom at +9, param 4 at +11, param 1 at +13, param 6 at +14 and +18.
@@ -94,3 +94,12 @@ looking for non-`GetP` commands on OUT. Tools: `tools/dump_bulk.py`,
 ## Verified from Linux
 
 `quantumcontrol/device.py` polls state and sets gain on the live device (host claims IF5 directly, VM must not hold the device). Gain 0 -> 1.5 -> 0 dB read back correctly on input 1. Phantom write not yet tested live (left off deliberately: phantom can damage some mics).
+
+## Mixer table block (measured, `07-stereolink-in12.pcapng`, not needed for basic control)
+
+Right after enabling/disabling stereo link, UC sends one 516-byte OUT (0x204)
+with header `04 02 01 01`, seq, `PteS`, 8 zero bytes, tag `mrpm`, then a table of
+records with float32 levels (-96.0 / -145.0 dB when linked, -99.0 when
+unlinked). Presumably rewrites the internal mixer matrix for the new mode.
+Not decoded; a GUI that only changes gain/+48V/low cut/auto gain does not need it.
+It is unknown whether stereo link works from Linux without also sending it.

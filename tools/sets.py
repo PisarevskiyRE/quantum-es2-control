@@ -14,7 +14,7 @@ def rep(i, step):
 others = {r[3][8:12] for r in rows if r[2]=='0'}
 print("OUT commands:", others)
 for i,(n,t,d,b) in enumerate(rows):
-    if d=='0' and b[8:12]==b'PteS':
+    if d=="0" and b[8:12]==b"PteS" and b[0]==40:
         body = b[:b[0]]
         w = struct.unpack_from("<%dI" % ((len(body)-24)//4), body, 24)
         a, c = rep(i,-1), rep(i,1)
