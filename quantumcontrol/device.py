@@ -34,6 +34,7 @@ class QuantumES2:
         self.seq = 1
         # The mixer matrix cannot be read back; these are what we assume until the user moves a control.
         self.main, self.faders, self.pans = 0.0, [FADER_MIN, FADER_MIN], [0.0, 0.0]
+        self.mutes, self.solos = [False, False], [False, False]
         usb.util.claim_interface(self.dev, IFACE)
         self.dev.set_interface_altsetting(IFACE, ALT)
 
@@ -127,24 +128,40 @@ class QuantumES2:
 
     def _input_level(self, ch, side):
         """Crosspoint of input `ch` into Main L/R: fader + main + constant-power pan gain."""
+        if self.mutes[ch] or (any(self.solos) and not self.solos[ch]):
+            return OFF_DB
         theta = (self.pans[ch] + 1) * math.pi / 4
         g = math.cos(theta) if side == 0 else math.sin(theta)
         if g < 1e-7:
             return OFF_DB
         return max(self.faders[ch] + self.main + 20 * math.log10(g), OFF_DB)
 
-    def set_main_volume(self, db):
-        """Main L/R fader. UC resends every crosspoint, since they all include the main level."""
-        v = self.main = min(max(db, MAIN_MIN), MAIN_MAX)
+    def _send_full_mix(self):
+        """All 12 records (both inputs plus DAW returns, left then right), as UC sends on main/solo changes."""
+        v = self.main
+        daw = OFF_DB if any(self.solos) else None
         records = []
         for side in (0, 1):
             c = side << 24
+            on = (v, v - 96) if daw is None else (OFF_DB, OFF_DB)
+            l_a, l_c = (on[0], on[1]) if side == 0 else (OFF_DB, OFF_DB)
+            r_b, r_d = (on[0], on[1]) if side == 1 else (OFF_DB, OFF_DB)
             records += [(c | 0, self._input_level(0, side)), (c | 1, self._input_level(1, side)),
-                        (c | 0x0A, v if side == 0 else -145.0),
-                        (c | 0x0B, -145.0 if side == 0 else v),
-                        (c | 0x0C, v - 96 if side == 0 else -145.0),
-                        (c | 0x0D, -145.0 if side == 0 else v - 96)]
+                        (c | 0x0A, l_a), (c | 0x0B, r_b), (c | 0x0C, l_c), (c | 0x0D, r_d)]
         return self._send_mix(records)
+
+    def set_main_volume(self, db):
+        """Main L/R fader. UC resends every crosspoint, since they all include the main level."""
+        self.main = min(max(db, MAIN_MIN), MAIN_MAX)
+        return self._send_full_mix()
+
+    def set_input_solo(self, channel, on):
+        self.solos[channel] = bool(on)
+        return self._send_full_mix()
+
+    def set_input_mute(self, channel, on):
+        self.mutes[channel] = bool(on)
+        return self._send_input(channel)
 
     def _send_input(self, channel):
         return self._send_mix([(channel | side << 24, self._input_level(channel, side))

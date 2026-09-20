@@ -170,8 +170,11 @@ class InputStrip(QWidget):
         self.pan.setToolTip("Панорама входа в Main (двойной клик - в центр). Положение запоминает программа")
         self.mute, self.solo = QPushButton("M"), QPushButton("S")
         for b in (self.mute, self.solo):
-            b.setEnabled(False)
-            b.setToolTip("Пока не поддерживается: протокол не расшифрован")
+            b.setCheckable(True)
+        self.mute.setToolTip("Mute входа в Main. Положение запоминает программа")
+        self.solo.setToolTip("Solo: глушит все остальные входы и возвраты DAW в Main")
+        self.mute.toggled.connect(lambda on: window.call("set_input_mute", ch, on))
+        self.solo.toggled.connect(lambda on: window.call("set_input_solo", ch, on))
         self.fader = VFader(dev_mod.FADER_MIN, dev_mod.FADER_MAX, 4,
                             lambda db: window.call("set_input_fader", ch, db), meter=True,
                             name=f"In {ch + 1}")

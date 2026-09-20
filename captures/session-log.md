@@ -15,3 +15,4 @@ One entry per capture file. Fill in as you go through `docs/capture-plan.md`.
 | 09-phones-volume.pcapng | phones volume sweep | -96..-0.8 dB | 2026-09-20 | section 0, param 7, state float at 324 |
 | 10-main-out-volume.pcapng | main out fader sweep | -27.55..+8.3 dB | 2026-09-20 | 516-byte mrpm block, 8 floats derived from one fader value |
 | 01-fader.pcapng | input 1 fader sweep | -96..+10 dB | 2026-09-20 | 2-record mrpm block, main assumed +0.48 |
+| 01-ms.pcapng | in1 mute on/off, then solo on/off | n/a | 2026-09-20 | mrpm blocks: 6 records for mute, 12 for solo |

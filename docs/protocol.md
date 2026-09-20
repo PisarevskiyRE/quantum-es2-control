@@ -172,3 +172,13 @@ Over 71 blocks the model reproduces the captured values within 0.09 dB (assuming
 UC also rewrites two send pairs (keys 0x000d0000/0x010d0000 and 0x000e0000/0x010e0000 for input 1) with value
 `-96 + pan gain` (send fader at -96 = off); the client skips them and sends only the two Main crosspoints
 (6 records vs 2). Input 2's send-pair keys are not captured.
+
+## Mute / Solo (measured, `01-ms.pcapng`: mute on/off, then solo on/off, input 1)
+
+Same `mrpm` block, no separate parameter.
+- Mute in1: its six records (Main L/R + the two send pairs) all -145 dB; unmute writes the normal values back.
+- Solo in1: 12 records; in1's Main crosspoints unchanged, input 2's crosspoints and all DAW returns (0x0a..0x0d)
+  set to -145. Solo off resends the full block with the normal values (in2 = fader + main + pan, DAW = main /
+  main-96 as in the main-fader block). From the restored values, main was +0.48 dB, in1 fader ~+1.2 dB.
+- Client: mute sends only the input's two Main records; solo sends all 12 (`_send_full_mix`). Neither state is
+  readable from the device.
