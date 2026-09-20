@@ -1,11 +1,12 @@
 """Qt GUI for the PreSonus Quantum ES 2, laid out like the native Universal Control window."""
 import math
+import re
 import sys
 import time
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QComboBox, QDial, QDialog, QGridLayout, QHBoxLayout,
-                               QLabel, QMessageBox, QProgressBar, QPushButton, QSlider,
+                               QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton, QSlider,
                                QVBoxLayout, QWidget)
 
 from . import audio
@@ -38,18 +39,79 @@ def fmt_db(v, digits=1):
     return "-oo dB" if v <= -95.9 else f"{v:.{digits}f} dB"
 
 
+def parse_db(text, lo, hi):
+    """Number from user text clamped to [lo, hi]; '-oo'/'-inf' means the minimum; None if unusable."""
+    t = text.strip().lower().replace(",", ".")
+    if t in ("-oo", "oo", "-inf", "-\u221e"):
+        return lo
+    m = re.search(r"[-+]?\d+(?:\.\d+)?", t)
+    return None if m is None else min(max(float(m.group()), lo), hi)
+
+
+def parse_pan(text):
+    """'C', 'L30', 'R20' or a number in -100..100 (negative = left); None if unusable."""
+    t = text.strip().upper().replace(",", ".")
+    if t in ("", "C", "0"):
+        return 0
+    m = re.fullmatch(r"([LR])\s*(\d+(?:\.\d+)?)", t)
+    if m:
+        n = float(m.group(2))
+        return round(min(n, 100) * (-1 if m.group(1) == "L" else 1))
+    m = re.fullmatch(r"[-+]?\d+(?:\.\d+)?", t)
+    return None if m is None else round(min(max(float(t), -100), 100))
+
+
+class EditableValue(QLabel):
+    """Value read-out: double-click opens an inline editor, Enter commits, Esc/focus loss cancels."""
+
+    committed = Signal(str)
+
+    def __init__(self, text=""):
+        super().__init__(text)
+        self.setMinimumSize(72, 22)
+        self.setToolTip("Двойной клик - ввести значение с клавиатуры")
+        self.edit = QLineEdit(self)
+        self.edit.setAlignment(Qt.AlignCenter)
+        self.edit.hide()
+        self.edit.returnPressed.connect(self._commit)
+        self.edit.installEventFilter(self)
+
+    def mouseDoubleClickEvent(self, e):
+        if not self.isEnabled():
+            return
+        m = re.search(r"[-+]?\d+(?:\.\d+)?|C", self.text())
+        self.edit.setGeometry(self.rect())
+        self.edit.setText(m.group() if m else "")
+        self.edit.show()
+        self.edit.setFocus()
+        self.edit.selectAll()
+
+    def _commit(self):
+        text = self.edit.text()
+        self.edit.hide()
+        self.committed.emit(text)
+
+    def eventFilter(self, obj, ev):
+        if obj is self.edit and (ev.type() == QEvent.FocusOut or (
+                ev.type() == QEvent.KeyPress and ev.key() == Qt.Key_Escape)):
+            self.edit.hide()
+        return super().eventFilter(obj, ev)
+
+
 class Dial(QWidget):
     """Knob with a title and blue value read-out. Dial units are 1/scale dB."""
 
     def __init__(self, title, lo, hi, scale, on_change, fmt=fmt_db):
         super().__init__()
         self.scale, self.on_change, self.fmt, self.touched = scale, on_change, fmt, 0.0
+        self.lo, self.hi = lo, hi
         self.dial = QDial()
         self.dial.setRange(round(lo * scale), round(hi * scale))
         self.dial.setFixedSize(40, 40)
-        self.title, self.value = QLabel(title), QLabel()
+        self.title, self.value = QLabel(title), EditableValue()
         self.title.setObjectName("name")
         self.value.setObjectName("val")
+        self.value.committed.connect(self._edited)
         text = QVBoxLayout()
         text.setSpacing(0)
         text.addWidget(self.title)
@@ -63,6 +125,11 @@ class Dial(QWidget):
 
     def _show(self, raw):
         self.value.setText(self.fmt(raw / self.scale))
+
+    def _edited(self, text):
+        v = parse_db(text, self.lo, self.hi)
+        if v is not None:
+            self.dial.setValue(round(v * self.scale))
 
     def _changed(self, raw):
         self._show(raw)
@@ -107,15 +174,17 @@ class VFader(QWidget):
     def __init__(self, lo, hi, scale, on_change, meter=False, name=""):
         super().__init__()
         self.scale, self.on_change, self.touched = scale, on_change, 0.0
+        self.lo, self.hi = lo, hi
         self.slider = QSlider(Qt.Vertical)
         self.slider.setRange(round(lo * scale), round(hi * scale))
         self.slider.setTickPosition(QSlider.TicksRight)
         self.slider.setTickInterval(round(12 * scale))
         self.slider.setMinimumHeight(220)
         self.meter = VMeter() if meter else None
-        self.value = QLabel("—")
+        self.value = EditableValue("—")
         self.value.setObjectName("val")
         self.value.setAlignment(Qt.AlignCenter)
+        self.value.committed.connect(self._edited)
         row = QHBoxLayout()
         if self.meter:
             row.addWidget(self.meter)
@@ -128,6 +197,11 @@ class VFader(QWidget):
         label.setObjectName("name")
         lay.addWidget(label)
         self.slider.valueChanged.connect(self._changed)
+
+    def _edited(self, text):
+        v = parse_db(text, self.lo, self.hi)
+        if v is not None:
+            self.slider.setValue(round(v * self.scale))
 
     def set_silent(self, db):
         self.slider.blockSignals(True)
@@ -169,8 +243,9 @@ class InputStrip(QWidget):
         self.gain = Dial("Gain", dev_mod.GAIN_MIN, dev_mod.GAIN_MAX, 8 / 3,
                          lambda db: window.call("set_gain", ch, db), fmt=lambda v: f"{v:.1f} dB")
         self.pan = PanSlider()
-        self.pan_label = QLabel("C")
+        self.pan_label = EditableValue("C")
         self.pan_label.setObjectName("val")
+        self.pan_label.committed.connect(self._pan_edited)
         self.pan_label.setAlignment(Qt.AlignCenter)
         self.pan.valueChanged.connect(self._pan_changed)
         self.pan.setToolTip("Панорама входа в Main (двойной клик - в центр). Положение запоминает программа")
@@ -206,6 +281,11 @@ class InputStrip(QWidget):
         lay.addWidget(self.fader, 1)
         lay.addWidget(self.link)
         self.setFixedWidth(150)
+
+    def _pan_edited(self, text):
+        v = parse_pan(text)
+        if v is not None and self.pan.isEnabled():
+            self.pan.setValue(v)
 
     def _pan_changed(self, v):
         self.pan_label.setText("C" if v == 0 else (f"L{-v}" if v < 0 else f"R{v}"))
