@@ -317,7 +317,11 @@ class MainWindow(QWidget):
         self.phones = Dial("Phones", dev_mod.VOL_MIN, dev_mod.VOL_MAX, 2,
                            lambda db: self.call("set_phones_volume", db))
         self.dim, self.main_mute, self.to_phones = QPushButton("Dim"), QPushButton("M"), QPushButton("Phones")
-        for b in (self.dim, self.main_mute, self.to_phones):
+        self.dim.setCheckable(True)
+        self.dim.setToolTip("Dim: приглушает выход Main Out")
+        self.dim.clicked.connect(self.dim_clicked)
+        self.dim_touched = 0.0
+        for b in (self.main_mute, self.to_phones):
             b.setEnabled(False)
             b.setToolTip("Пока не поддерживается: протокол не расшифрован")
         self.main_fader = VFader(dev_mod.MAIN_MIN, dev_mod.MAIN_MAX, 2,
@@ -367,6 +371,10 @@ class MainWindow(QWidget):
         self.timer.start(50)
         self.set_enabled(False)
 
+    def dim_clicked(self, on):
+        self.dim_touched = time.monotonic()
+        self.call("set_dim", on)
+
     def input_fader(self, ch, db):
         self.call("set_input_fader", ch, db)
         if self.linked:
@@ -394,7 +402,7 @@ class MainWindow(QWidget):
             self.strips[1].fader.set_silent(self.strips[0].fader.slider.value() / self.strips[0].fader.scale)
 
     def set_enabled(self, on):
-        for w in (*self.strips, self.main_knob, self.phones, self.main_fader):
+        for w in (*self.strips, self.main_knob, self.phones, self.main_fader, self.dim):
             w.setEnabled(on)
 
     def call(self, name, *args):
@@ -434,6 +442,8 @@ class MainWindow(QWidget):
             strip.update_state(cs)
         if s["channels"][0]["link"] != self.linked and time.monotonic() - self.link_touched > USER_HOLD_S:
             self.apply_link(s["channels"][0]["link"])
+        if time.monotonic() - self.dim_touched > USER_HOLD_S:
+            self.dim.setChecked(s["dim"])
         self.main_knob.set_from_device(s["monitor_db"])
         self.phones.set_from_device(s["phones_db"])
 

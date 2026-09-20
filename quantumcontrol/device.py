@@ -12,10 +12,10 @@ POLL_LEN = 752
 
 SECTION_OUT, SECTION_IN = 0, 1
 P_IN_STEREO_LINK, P_IN_GAIN, P_IN_LOWCUT, P_IN_AUTOGAIN, P_IN_PHANTOM = 1, 2, 4, 6, 10
-P_OUT_MONITOR, P_OUT_PHONES = 2, 7
+P_OUT_DIM, P_OUT_MONITOR, P_OUT_PHONES = 0, 2, 7
 
 STATE_BASE, STATE_STRIDE = 376, 19
-OFF_MONITOR, OFF_PHONES = 312, 324
+OFF_DIM, OFF_MONITOR, OFF_PHONES = 308, 312, 324
 OFF_METER = 28  # float32 linear peak per input, 4 bytes apart
 
 GAIN_MIN, GAIN_MAX = 0.0, 75.0
@@ -84,6 +84,7 @@ class QuantumES2:
                 self.pans, self.faders[1] = [-1.0, 1.0], self.faders[0]
         return {
             "channels": chans,
+            "dim": bool(r[OFF_DIM]),
             "monitor_db": struct.unpack_from("<f", r, OFF_MONITOR)[0],
             "phones_db": struct.unpack_from("<f", r, OFF_PHONES)[0],
             "firmware": r[348:360].decode("ascii", "replace"),
@@ -112,6 +113,9 @@ class QuantumES2:
 
     def start_autogain(self, channel):
         return self._set_int(SECTION_IN, channel, P_IN_AUTOGAIN, 1)
+
+    def set_dim(self, on):
+        return self._set_int(SECTION_OUT, 0, P_OUT_DIM, on)
 
     def set_monitor_volume(self, db):
         db = min(max(db, VOL_MIN), VOL_MAX)
