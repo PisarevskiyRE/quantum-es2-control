@@ -65,7 +65,7 @@ is a u32 for switches and a float32 for gain.
 |-------|---------|-------|--------------------------------------------|
 | 2  | input gain | float32 dB, 0..75, step 0.375 | float32 at 376 (ch1: 395) |
 | 10 | +48V phantom | 0/1 | byte 385 (ch1: 404) |
-| 4  | unknown switch (0/1) | 0/1 | byte 387 |
+| 4  | **low cut** (high-pass), confirmed by `04-lowcut-in1` | 0/1 | byte 387 |
 | 6  | unknown switch (0/1) | 0/1 | bytes 390 and 394 |
 | 1  | unknown, sent to both channels at once (stereo link?) | 0/1 | bytes 389 and 408 (+ float at 395..398 changed) |
 
