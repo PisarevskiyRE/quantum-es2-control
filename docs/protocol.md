@@ -43,15 +43,18 @@ Phantom +48V on input 1 toggled on, off, on, off (4 SetP). Request, 40 bytes:
 | 16  | 4    | 1 | unknown |
 | 20  | 4    | `iraP` = "Pari" | unknown tag |
 | 24  | 4    | 0x14 (20) | hypothesis: parameter/group id |
-| 28  | 4    | 0 | hypothesis: channel index (input 1 -> 0) |
+| 28  | 4    | 0 | **channel index** (measured: input 1 -> 0, input 2 -> 1) |
 | 32  | 4    | 0x0a (10) | hypothesis: parameter id (phantom?) |
 | 36  | 4    | 1 = on, 0 = off | value (u32 LE, off = zeros) |
 
 Device answers with an 8-byte ack: `08 00 01 81` + echoed seq (no data).
 Right after, the normal `Rply` poll shows the new state at **offset 385**
 (u8, 0 -> 1 for phantom on; reply grows from 360 to 386 significant bytes).
-The roles of 20/0/10 are not separated yet: needs phantom on input 2 (channel
-index) and pad/gain (parameter id) captures.
+Input 2 (`02-phantom-in2.pcapng`) is identical except field 28 = 1, and its
+state byte is at reply offset **404** = 385 + 19: per-input state blocks are
+19 bytes apart (hypothesis: block 0 starts at 385 - k, phantom is byte k of it).
+Still to separate: field 24 (=20) vs field 32 (=10) — group vs parameter id;
+needs pad and gain captures.
 
 ## Reply body (IN, offsets from packet start)
 
