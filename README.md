@@ -1,4 +1,10 @@
-# QuantumControl
+# quantum-es2-control
+
+> **Unofficial.** Not affiliated with or endorsed by PreSonus. The protocol was reverse-engineered
+> from USB traffic of the vendor's own software for interoperability. Everything is provided
+> **as is, at your own risk**: the tool writes settings to the device. In particular, +48V phantom power
+> can damage ribbon microphones; many controls are decoded from captures but not yet tested one by one
+> (see Status). Tested only on a Quantum ES 2 with firmware v3.03.112204.
 
 Linux GUI for controlling a PreSonus Quantum ES 2 audio interface — input
 preamp gain, +48V phantom power, pad, direct monitor mix, headphone/output
@@ -55,3 +61,14 @@ rule must be installed, see `udev/`):
   macOS — useful as a Rosetta Stone, but it's the daemon↔app protocol, not
   necessarily byte-identical to what crosses IF5 to the hardware itself.
   Worth checking once we have real IF5 traffic.
+
+## Contributing
+
+Issues and pull requests are welcome, especially: testing controls on your own unit, other firmware
+versions, other Quantum ES models (ES 4, ES 8, ES 16), and captures of features not decoded yet
+(`docs/HANDOFF.md` lists open questions, `docs/capture-plan.md` explains how to capture). Raw captures
+may contain your device serial number: check before sharing.
+
+## License
+
+GPL-3.0-or-later, see `LICENSE`. "PreSonus" and "Quantum" are trademarks of their owners.
