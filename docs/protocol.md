@@ -40,7 +40,7 @@ Phantom +48V on input 1 toggled on, off, on, off (4 SetP). Request, 40 bytes:
 | 2   | 2    | `01 01` | request |
 | 4   | 4    | seq | counter |
 | 8   | 8    | `PteS lppA` | "SetP" "Appl" |
-| 16  | 4    | 1 | unknown |
+| 16  | 4    | 1 = input section, **0 = output section** (`08-monitor-volume`) | target section |
 | 20  | 4    | `iraP` = "Pari" for int params (phantom), `araP` = "Para" for float params (gain) | value type tag; **verified**: wrong tag = ack but no effect |
 | 24  | 4    | 0x14 (20) | hypothesis: parameter/group id |
 | 28  | 4    | 0 | **channel index** (measured: input 1 -> 0, input 2 -> 1) |
@@ -103,3 +103,10 @@ records with float32 levels (-96.0 / -145.0 dB when linked, -99.0 when
 unlinked). Presumably rewrites the internal mixer matrix for the new mode.
 Not decoded; a GUI that only changes gain/+48V/low cut/auto gain does not need it.
 It is unknown whether stereo link works from Linux without also sending it.
+
+## Outputs (measured, `08-monitor-volume.pcapng`, live write from Linux NOT yet tested)
+
+Same SetP layout with field 16 = 0. Monitor (main) volume: `[section 0] araP 20, index 0, param 2, float32 dB`,
+swept -96.0 .. -4.7 dB in the capture. State in Rply: float32 at offset **312**
+(was -96.0 at capture start). The two other floats that looked constant in the very first
+capture (316 = -10.0, 324 = -96.0) are probably further output levels (phones?), unconfirmed.

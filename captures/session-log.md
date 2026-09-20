@@ -11,3 +11,4 @@ One entry per capture file. Fill in as you go through `docs/capture-plan.md`.
 | 05-autogen-in1.pcapng | auto gain input 1, once, no signal | n/a | 2026-09-20 | param 6; state bytes 390/394 |
 | 06-gain-in1-repeat.pcapng | gain sweep input 1 | 0..64.5 dB | 2026-09-20 | only param 2, nothing new |
 | 07-stereolink-in12.pcapng | stereo/mono link inputs 1-2: on, off | n/a | 2026-09-20 | param 1 on ch0+ch1, then 516-byte mprm block |
+| 08-monitor-volume.pcapng | monitor volume sweep | -96..-4.7 dB | 2026-09-20 | section 0 (outputs), param 2, state float at 312 |
