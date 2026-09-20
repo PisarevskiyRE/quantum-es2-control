@@ -130,7 +130,7 @@ values at 172/176/276..288), so a client must remember the value itself.
 Live write from Linux not tested; the template also encodes the current mixer setup (stereo link
 changes the -96/-99 constants), so it should be captured from the same state it is replayed in.
 
-## Input meters (from existing captures, live signal test pending)
+## Input meters (offset 28 verified live on input 1; input 2 from captures only)
 
 Rply float32 at offset **28** (input 1) and **32** (input 2): linear peak amplitude, dBFS = 20*log10(v).
 Evidence: only offset 28 rises in the input-1 captures (0.0185 during phantom toggling, 0.274 during the
