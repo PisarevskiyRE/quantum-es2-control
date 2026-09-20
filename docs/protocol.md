@@ -56,6 +56,23 @@ state byte is at reply offset **404** = 385 + 19: per-input state blocks are
 Still to separate: field 24 (=20) vs field 32 (=10) — group vs parameter id;
 needs pad and gain captures.
 
+## Parameters (measured, `03-panGain-in11.pcapng`)
+
+SetP body from offset 24 is `[20, channel, param, value]`, u32 each. The value
+is a u32 for switches and a float32 for gain.
+
+| param | meaning | value | state in Rply (channel 0, +19 per channel) |
+|-------|---------|-------|--------------------------------------------|
+| 2  | input gain | float32 dB, 0..75, step 0.375 | float32 at 376 (ch1: 395) |
+| 10 | +48V phantom | 0/1 | byte 385 (ch1: 404) |
+| 4  | unknown switch (0/1) | 0/1 | byte 387 |
+| 6  | unknown switch (0/1) | 0/1 | bytes 390 and 394 |
+| 1  | unknown, sent to both channels at once (stereo link?) | 0/1 | bytes 389 and 408 (+ float at 395..398 changed) |
+
+The per-channel state block is 19 bytes starting at offset 376: gain f32 at +0,
+phantom at +9, param 4 at +11, param 1 at +13, param 6 at +14 and +18.
+(Which UI buttons correspond to params 1, 4 and 6 is still to be confirmed.)
+
 ## Reply body (IN, offsets from packet start)
 
 - `28..35`: two float32, ~9e-6 — the only bytes that vary over time. Hypothesis:
