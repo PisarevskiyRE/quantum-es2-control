@@ -138,7 +138,7 @@ gain sweep) and only offset 32 in the input-2 phantom capture (0.0232); silence 
 Whether 1.0 is exactly full scale and whether the value is peak-since-last-poll is not verified.
 The GUI shows them as bars with instant attack, 20 dB/s release and a CLIP flag at >= -0.5 dBFS.
 
-## Naming vs the native app (from `docs/native-ui.png`)
+## Naming vs the native app (from a local screenshot of the native app (not in the repo))
 
 - Native "Main Out" knob (H/W Controls) = param 2, section 0, Rply float at 312 (-96 shown as "-oo dB").
 - Native "Phones" knob = param 7, section 0, Rply float at 324.

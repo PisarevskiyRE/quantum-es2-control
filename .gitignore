@@ -4,3 +4,4 @@ __pycache__/
 captures/*.pcap
 captures/*.pcapng
 docs/*.pdf
+docs/native-ui.png

@@ -4,7 +4,7 @@ Goal: Linux GUI for the PreSonus Quantum ES 2 (USB 194f:0609) that looks like Un
 working; see README.md for the feature list and docs/protocol.md for the wire format.
 
 ## How to run
-- GUI: `cd /home/roy/Data/work/QuantumControl && .venv/bin/python -m quantumcontrol` (`--demo` = fake device).
+- GUI: `cd the project directory && .venv/bin/python -m quantumcontrol` (`--demo` = fake device).
 - Tests (offline): `.venv/bin/python -m unittest discover -s tests`
 - Only ONE program can hold interface 5: the GUI, `tools/watch.py`, and the Windows VM (USB passthrough) are
   mutually exclusive. Close the GUI before running tools; detach the device from the VM (virt-manager, remove the
@@ -49,7 +49,7 @@ working; see README.md for the feature list and docs/protocol.md for the wire fo
 5. Local Scenes (JSON files), peak hold / meter decay, channel names, warning about Loopback at 176.4/192 kHz.
 
 ## Working agreements with the user
-- Everything lives in /home/roy/Data/work/QuantumControl (venv `.venv`, git, one commit per step).
+- Everything lives in the project directory (venv `.venv`, git, one commit per step).
 - Speak Russian. The user tests on the real card and reports; do not touch the device while they test.
 - Never enable +48V or send unverified writes to the device without saying so first (ribbon mics can be damaged).
 - Copy button and native gear window are intentionally not replicated; the Phones button is an indicator.
