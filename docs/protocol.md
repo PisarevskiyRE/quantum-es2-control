@@ -19,7 +19,7 @@ Offsets in bytes, all little-endian:
 
 | off | size | meaning |
 |-----|------|---------|
-| 0   | 2    | `f0 02` magic (constant) |
+| 0   | 2    | total message length: `f0 02` = 0x02f0 = 752 for polls, 0x28 = 40 for SetP, 8 for a bare ack (first `f0 02` is a length, not a magic) |
 | 2   | 2    | `01 01` = host->device, `01 81` = device->host (bit 7 = reply) |
 | 4   | 4    | sequence counter; host increments per request, the reply echoes it (hypothesis: echo; the IN packet in frame #3 had 0x59 == the OUT in #1) |
 | 8   | 8    | command as two fourcc's stored byte-reversed: OUT `PteG lppA` = "GetP" "Appl"; IN `ylpR lppA` = "Rply" "Appl" |
@@ -29,6 +29,29 @@ Offsets in bytes, all little-endian:
 
 OUT request `GetP Appl` ends at offset 26 (rest zero). It is the only command
 seen so far: **no writes at all** in this capture.
+
+## SetP command (measured, `02-phantom-in1.pcapng`)
+
+Phantom +48V on input 1 toggled on, off, on, off (4 SetP). Request, 40 bytes:
+
+| off | size | value | meaning |
+|-----|------|-------|---------|
+| 0   | 2    | `28 00` | length 40 |
+| 2   | 2    | `01 01` | request |
+| 4   | 4    | seq | counter |
+| 8   | 8    | `PteS lppA` | "SetP" "Appl" |
+| 16  | 4    | 1 | unknown |
+| 20  | 4    | `iraP` = "Pari" | unknown tag |
+| 24  | 4    | 0x14 (20) | hypothesis: parameter/group id |
+| 28  | 4    | 0 | hypothesis: channel index (input 1 -> 0) |
+| 32  | 4    | 0x0a (10) | hypothesis: parameter id (phantom?) |
+| 36  | 4    | 1 = on, 0 = off | value (u32 LE, off = zeros) |
+
+Device answers with an 8-byte ack: `08 00 01 81` + echoed seq (no data).
+Right after, the normal `Rply` poll shows the new state at **offset 385**
+(u8, 0 -> 1 for phantom on; reply grows from 360 to 386 significant bytes).
+The roles of 20/0/10 are not separated yet: needs phantom on input 2 (channel
+index) and pad/gain (parameter id) captures.
 
 ## Reply body (IN, offsets from packet start)
 
