@@ -193,7 +193,8 @@ sides -145 dB), i.e. hard pan L/R, and input 2's fader takes input 1's value. Li
 (-96/-145 linked, -99 unlinked); the client omits them and sends the four Main crosspoints. The link flag is
 readable from Rply (bytes 389 / 408), so the GUI mirrors it.
 
-## Dim (measured, `01-dim.pcapng`)
+## Dim and Mute of Main Out (measured, `01-dim.pcapng`, `01-M.pcapng`)
 
-Plain SetP in the output section: `[section 0, tag iraP, 20, 0, param 0, 0/1]`. State: byte at Rply offset **308**
-(0/1). The amount of attenuation is applied by the device (not visible on the wire).
+One enum parameter in the output section: `[section 0, tag iraP, 20, 0, param 0, mode]` with mode 0 = normal,
+1 = Dim, 2 = Mute (mutually exclusive). State: byte at Rply offset **308** carries the same mode value. The amount
+of attenuation is applied by the device (not visible on the wire).

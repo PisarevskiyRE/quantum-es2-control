@@ -18,3 +18,4 @@ One entry per capture file. Fill in as you go through `docs/capture-plan.md`.
 | 01-ms.pcapng | in1 mute on/off, then solo on/off | n/a | 2026-09-20 | mrpm blocks: 6 records for mute, 12 for solo |
 | 01-link.pcapng | stereo link icon on/off | n/a | 2026-09-20 | param 1 + 12-record mrpm |
 | 01-dim.pcapng | Dim on, off | n/a | 2026-09-20 | section 0 param 0, state byte 308 |
+| 01-M.pcapng | Main Out mute on, off | n/a | 2026-09-20 | param 0 value 2 (Dim was 1), state byte 308 |

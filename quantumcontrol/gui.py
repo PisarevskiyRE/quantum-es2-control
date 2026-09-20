@@ -317,13 +317,15 @@ class MainWindow(QWidget):
         self.phones = Dial("Phones", dev_mod.VOL_MIN, dev_mod.VOL_MAX, 2,
                            lambda db: self.call("set_phones_volume", db))
         self.dim, self.main_mute, self.to_phones = QPushButton("Dim"), QPushButton("M"), QPushButton("Phones")
-        self.dim.setCheckable(True)
-        self.dim.setToolTip("Dim: приглушает выход Main Out")
-        self.dim.clicked.connect(self.dim_clicked)
-        self.dim_touched = 0.0
-        for b in (self.main_mute, self.to_phones):
-            b.setEnabled(False)
-            b.setToolTip("Пока не поддерживается: протокол не расшифрован")
+        for b in (self.dim, self.main_mute):
+            b.setCheckable(True)
+        self.dim.setToolTip("Dim: приглушает выход Main Out (исключает Mute)")
+        self.main_mute.setToolTip("Mute выхода Main Out (исключает Dim)")
+        self.dim.clicked.connect(lambda on: self.out_mode_clicked(1 if on else 0))
+        self.main_mute.clicked.connect(lambda on: self.out_mode_clicked(2 if on else 0))
+        self.mode_touched = 0.0
+        self.to_phones.setEnabled(False)
+        self.to_phones.setToolTip("Пока не поддерживается: протокол не расшифрован")
         self.main_fader = VFader(dev_mod.MAIN_MIN, dev_mod.MAIN_MAX, 2,
                                  lambda db: self.call("set_main_volume", db), name="Main L/R")
         self.main_fader.slider.setValue(0)
@@ -371,9 +373,11 @@ class MainWindow(QWidget):
         self.timer.start(50)
         self.set_enabled(False)
 
-    def dim_clicked(self, on):
-        self.dim_touched = time.monotonic()
-        self.call("set_dim", on)
+    def out_mode_clicked(self, mode):
+        self.mode_touched = time.monotonic()
+        self.dim.setChecked(mode == 1)
+        self.main_mute.setChecked(mode == 2)
+        self.call("set_out_mode", mode)
 
     def input_fader(self, ch, db):
         self.call("set_input_fader", ch, db)
@@ -402,7 +406,7 @@ class MainWindow(QWidget):
             self.strips[1].fader.set_silent(self.strips[0].fader.slider.value() / self.strips[0].fader.scale)
 
     def set_enabled(self, on):
-        for w in (*self.strips, self.main_knob, self.phones, self.main_fader, self.dim):
+        for w in (*self.strips, self.main_knob, self.phones, self.main_fader, self.dim, self.main_mute):
             w.setEnabled(on)
 
     def call(self, name, *args):
@@ -442,8 +446,9 @@ class MainWindow(QWidget):
             strip.update_state(cs)
         if s["channels"][0]["link"] != self.linked and time.monotonic() - self.link_touched > USER_HOLD_S:
             self.apply_link(s["channels"][0]["link"])
-        if time.monotonic() - self.dim_touched > USER_HOLD_S:
-            self.dim.setChecked(s["dim"])
+        if time.monotonic() - self.mode_touched > USER_HOLD_S:
+            self.dim.setChecked(s["out_mode"] == 1)
+            self.main_mute.setChecked(s["out_mode"] == 2)
         self.main_knob.set_from_device(s["monitor_db"])
         self.phones.set_from_device(s["phones_db"])
 

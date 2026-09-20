@@ -84,7 +84,7 @@ class QuantumES2:
                 self.pans, self.faders[1] = [-1.0, 1.0], self.faders[0]
         return {
             "channels": chans,
-            "dim": bool(r[OFF_DIM]),
+            "out_mode": r[OFF_DIM],
             "monitor_db": struct.unpack_from("<f", r, OFF_MONITOR)[0],
             "phones_db": struct.unpack_from("<f", r, OFF_PHONES)[0],
             "firmware": r[348:360].decode("ascii", "replace"),
@@ -114,8 +114,9 @@ class QuantumES2:
     def start_autogain(self, channel):
         return self._set_int(SECTION_IN, channel, P_IN_AUTOGAIN, 1)
 
-    def set_dim(self, on):
-        return self._set_int(SECTION_OUT, 0, P_OUT_DIM, on)
+    def set_out_mode(self, mode):
+        """Output mode of Main Out: 0 normal, 1 Dim, 2 Mute (one parameter, mutually exclusive)."""
+        return self._set_int(SECTION_OUT, 0, P_OUT_DIM, mode)
 
     def set_monitor_volume(self, db):
         db = min(max(db, VOL_MIN), VOL_MAX)
